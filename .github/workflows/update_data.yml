@@ -29,13 +29,9 @@ jobs:
           # 這樣 Selenium 才能找到它
           sudo ln -s /usr/lib/chromium-browser/chromedriver /usr/local/bin/chromedriver
 
-    # 步驟 B: 執行爬蟲和地理編碼 (修正版)
+    # 步驟 B: 執行爬蟲和地理編碼 (確保它是乾淨的)
       - name: Run Scraper and Geocoding
-        # 設置環境變數，將 chromedriver 的路徑添加到 PATH 中
         run: |
-          # /usr/lib/chromium-browser/ 是 GitHub Actions 中安裝 chromedriver 的標準路徑
-          export PATH="$PATH:/usr/lib/chromium-browser/"
-          
           echo "--- Starting Scraper ---"
           # 執行爬蟲
           python auto_scraper.py 
