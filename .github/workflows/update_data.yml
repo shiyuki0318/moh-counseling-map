@@ -15,35 +15,46 @@ jobs:
       - name: Checkout repository code
         uses: actions/checkout@v4
 
+      # 步驟 A: 安裝 Chrome/Chromedriver
+      - name: Install necessary tools (Chromium)
+        run: |
+          sudo apt-get update
+          # 安裝無頭 Chrome 瀏覽器 (Headless)
+          sudo apt-get install chromium-browser -y
+          # 安裝 ChromeDriver (讓 Selenium 控制它)
+          sudo apt-get install chromium-chromedriver -y
+          
       - name: Set up Python environment
         uses: actions/setup-python@v5
         with:
           python-version: '3.10'
           cache: 'pip'
 
-      - name: Install dependencies (Scraper, Geopy, Streamlit, etc.)
+      - name: Install dependencies (From requirements.txt)
         run: |
-          # 為了讓 selenium 運作，必須安裝 chromium 瀏覽器
-          sudo apt-get update
-          sudo apt-get install chromium-chromedriver -y
           pip install -r requirements.txt
           pip install geopy pandas beautifulsoup4
 
-      - name: Configure PATH for Chromedriver
-        run: |
-          echo "/usr/lib/chromium-browser/" >> $GITHUB_PATH
-
+      # 步驟 B: 執行爬蟲和地理編碼
       - name: Run Scraper and Geocoding
         run: |
-          # 運行您的爬蟲 (auto_scraper.py)
+          # 為了讓 Selenium 找到 Chromedriver，我們需要設定環境變數
+          export CHROME_BIN=/usr/bin/chromium-browser
+          export CHROMEDRIVER_PATH=/usr/lib/chromium-browser/chromedriver
+
+          # 執行爬蟲，這次它應該能找到 Chromedriver
           python auto_scraper.py 
-          # 運行地理編碼 (geocode.py)
+          
+          # 執行地理編碼
           python geocode.py
 
+      # 步驟 C: 提交更新的資料
       - name: Commit and Push new data to GitHub
         run: |
           git config user.name 'GitHub Actions'
           git config user.email 'actions@github.com'
+          # 檢查是否有任何變動 (避免錯誤)
           git add MOHW_counseling_data_FINAL.csv
           git commit -m "SCHEDULER: Auto update counseling data with latest availability." || echo "No changes to commit"
+          # 強制推送到倉庫
           git push
