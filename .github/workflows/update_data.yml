@@ -35,16 +35,18 @@ jobs:
           pip install -r requirements.txt
           pip install geopy pandas beautifulsoup4
 
-      # 步驟 B: 執行爬蟲和地理編碼
+    # 步驟 B: 執行爬蟲和地理編碼 (修正版)
       - name: Run Scraper and Geocoding
+        # 設置環境變數，將 chromedriver 的路徑添加到 PATH 中
         run: |
-          # 為了讓 Selenium 找到 Chromedriver，我們需要設定環境變數
-          export CHROME_BIN=/usr/bin/chromium-browser
-          export CHROMEDRIVER_PATH=/usr/lib/chromium-browser/chromedriver
-
-          # 執行爬蟲，這次它應該能找到 Chromedriver
+          # /usr/lib/chromium-browser/ 是 GitHub Actions 中安裝 chromedriver 的標準路徑
+          export PATH="$PATH:/usr/lib/chromium-browser/"
+          
+          echo "--- Starting Scraper ---"
+          # 執行爬蟲
           python auto_scraper.py 
           
+          echo "--- Starting Geocoding ---"
           # 執行地理編碼
           python geocode.py
 
