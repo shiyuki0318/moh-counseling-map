@@ -1,0 +1,7 @@
+streamlit
+pandas
+folium
+streamlit-folium
+geopy
+# 保留以下套件，雖然雲端不跑它們，但確保本地開發與部署環境一致
+beautifulsoup4
