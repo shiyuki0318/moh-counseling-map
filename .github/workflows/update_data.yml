@@ -15,7 +15,7 @@ jobs:
       - name: Checkout repository code
         uses: actions/checkout@v4
 
-      # 步驟 A: 安裝 Chrome/Chromedriver (修正版)
+      # 步驟 A: 安裝 Chrome/Chromedriver
       - name: Install necessary tools (Chromium)
         run: |
           sudo apt-get update
@@ -24,16 +24,25 @@ jobs:
           # 安裝 ChromeDriver
           sudo apt-get install chromium-chromedriver -y
           
-          # **【最終關鍵】**
-          # 建立一個符號連結 (Symbolic Link)，讓系統知道 "chromedriver" 其實就是 "chromium-chromedriver"
-          # 這樣 Selenium 才能找到它
-          sudo ln -s /usr/lib/chromium-browser/chromedriver /usr/local/bin/chromedriver
+      - name: Set up Python environment
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+          cache: 'pip'
 
-    # 步驟 B: 執行爬蟲和地理編碼 (確保它是乾淨的)
+      # *** 關鍵修正：確保安裝 pandas 和所有 data science 套件 ***
+      - name: Install dependencies (Scraper, Pandas, Geopy)
+        run: |
+          # 1. 安裝 requirements.txt 中的 web 套件 (streamlit, selenium, etc.)
+          pip install -r requirements.txt
+          # 2. 修正錯誤：明確安裝 pandas、geopy 和 BeautifulSoup
+          pip install pandas geopy beautifulsoup4
+
+      # 步驟 B: 執行爬蟲和地理編碼 (確保 Python 執行檔能夠找到)
       - name: Run Scraper and Geocoding
         run: |
           echo "--- Starting Scraper ---"
-          # 執行爬蟲
+          # 執行爬蟲：現在 pandas 已經安裝了
           python auto_scraper.py 
           
           echo "--- Starting Geocoding ---"
@@ -48,5 +57,4 @@ jobs:
           # 檢查是否有任何變動 (避免錯誤)
           git add MOHW_counseling_data_FINAL.csv
           git commit -m "SCHEDULER: Auto update counseling data with latest availability." || echo "No changes to commit"
-          # 強制推送到倉庫
           git push
