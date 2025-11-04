@@ -1,0 +1,49 @@
+name: Scheduled Data Update
+
+on:
+  # 設定排程：每天格林威治時間 00:00 執行 (台灣時間早上 8 點)
+  schedule:
+    - cron: '0 0 * * *'
+  # 也可以手動運行
+  workflow_dispatch:
+
+jobs:
+  run_scraper_and_update_data:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository code
+        uses: actions/checkout@v4
+
+      - name: Set up Python environment
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+          cache: 'pip'
+
+      - name: Install dependencies (Scraper, Geopy, Streamlit, etc.)
+        run: |
+          # 為了讓 selenium 運作，必須安裝 chromium 瀏覽器
+          sudo apt-get update
+          sudo apt-get install chromium-chromedriver -y
+          pip install -r requirements.txt
+          pip install geopy pandas beautifulsoup4
+
+      - name: Configure PATH for Chromedriver
+        run: |
+          echo "/usr/lib/chromium-browser/" >> $GITHUB_PATH
+
+      - name: Run Scraper and Geocoding
+        run: |
+          # 運行您的爬蟲 (auto_scraper.py)
+          python auto_scraper.py 
+          # 運行地理編碼 (geocode.py)
+          python geocode.py
+
+      - name: Commit and Push new data to GitHub
+        run: |
+          git config user.name 'GitHub Actions'
+          git config user.email 'actions@github.com'
+          git add MOHW_counseling_data_FINAL.csv
+          git commit -m "SCHEDULER: Auto update counseling data with latest availability." || echo "No changes to commit"
+          git push
