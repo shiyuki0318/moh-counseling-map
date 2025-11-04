@@ -30,14 +30,14 @@ jobs:
           python-version: '3.10'
           cache: 'pip'
 
-      # *** 關鍵修正：確保安裝 pandas 和所有 data science 套件 ***
-      - name: Install dependencies (Scraper, Pandas, Geopy)
+      # *** 關鍵修正：確保安裝所有 data science 和 web 爬蟲套件 (包括 selenium) ***
+      - name: Install dependencies (Scraper, Pandas, Geopy, Selenium)
         run: |
-          # 1. 安裝 requirements.txt 中的 web 套件 (streamlit, selenium, etc.)
+          # 1. 安裝 requirements.txt 中的 web 套件 
           pip install -r requirements.txt
-          # 2. 修正錯誤：明確安裝 pandas、geopy 和 BeautifulSoup
-          pip install pandas geopy beautifulsoup4
-
+          # 2. 修正錯誤：明確安裝所有缺失的套件
+          pip install pandas geopy beautifulsoup4 selenium
+          
       # 步驟 B: 執行爬蟲和地理編碼 (確保 Python 執行檔能夠找到)
       - name: Run Scraper and Geocoding
         run: |
