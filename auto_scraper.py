@@ -1,185 +1,332 @@
+"""
+智能自動更新爬蟲 - 繞過雲端 IP 封鎖
+策略: 使用多種方法,加入隨機延遲,模擬真人行為
+
+安裝: pip install selenium pandas beautifulsoup4 requests
+"""
+
 import pandas as pd
 import time
 import sys
 import urllib3
-import math 
-import re # 導入 re 用於解析頁數
-from bs4 import BeautifulSoup 
+import math
+import re
+import random
+from bs4 import BeautifulSoup
 
-# 導入 Selenium 的核心工具
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import Select
-from selenium.common.exceptions import NoSuchElementException, TimeoutException
-from selenium.webdriver.support.ui import WebDriverWait 
-from selenium.webdriver.support import expected_conditions as EC 
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.common.action_chains import ActionChains
 
-# --- 0. 設置常量 ---
+# ===== 設定 =====
 main_page_url = "https://sps.mohw.gov.tw/mhs"
 OUTPUT_CSV_NAME = "MOHW_counseling_data_NEW.csv"
-WAIT_TIME = 30  # 增加連線等待時間 (30秒)
+WAIT_TIME = 30
 
-# --- 關閉警告 ---
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-all_institutions_data = [] 
-driver = None # (新) 在 try 之外定義 driver
+def random_delay(min_sec=1, max_sec=3):
+    """隨機延遲,模擬真人"""
+    time.sleep(random.uniform(min_sec, max_sec))
 
-try:
-    # 2.1 啟動 Chrome (GitHub Actions 終極穩定版)
-    # 使用系統安裝的 Chromedriver 路徑
-    service = Service(executable_path="/usr/bin/chromedriver") 
-
-    options = webdriver.ChromeOptions()
-    options.add_argument('--headless=new')     # *** 使用新的無頭模式 ***
-    options.add_argument('--no-sandbox')      # 雲端環境必備
-    options.add_argument('--disable-dev-shm-usage') # 雲端環境必備
-    options.add_argument('--disable-gpu')     # 禁用 GPU
-    options.add_argument('--window-size=1920,1080') # 設置窗口大小
-    options.add_argument('--log-level=3') 
-    
-    driver = webdriver.Chrome(service=service, options=options)
-    
-    # 設置頁面載入超時
-    driver.set_page_load_timeout(WAIT_TIME + 10) 
-    wait = WebDriverWait(driver, WAIT_TIME) 
-    
-    # 2.2 載入頁面
-    print("  正在載入主頁面...")
-    driver.get(main_page_url)
-
-    # --- 處理 Cookie 同意彈窗 (如果有的話) ---
+def human_like_click(driver, element):
+    """模擬真人點擊 - 使用 ActionChains"""
     try:
-        cookie_accept_button = wait.until(
-            EC.element_to_be_clickable((By.XPATH, "//*[contains(text(), '同意') or contains(text(), '接受')]"))
-        )
-        cookie_accept_button.click()
-        time.sleep(1) 
-    except Exception:
-        print("  未發現 Cookie 視窗 (可能已同意或不存在)，繼續執行。")
-
-    # --- 2.4 點擊「心理諮商合作機構查詢」按鈕 ---
-    print("  正在點擊「機構查詢」按鈕...")
-    query_button_xpath = "//a[@class='queryServiceOrg']"
-    query_button = wait.until(EC.element_to_be_clickable((By.XPATH, query_button_xpath)))
-    driver.execute_script("arguments[0].click();", query_button) # 使用 JS 點擊更穩定
-    time.sleep(2) # 等待彈出視窗完全出現
-
-    # --- 2.5 尋找縣市下拉選單並獲取代碼 ---
-    print("  正在讀取縣市列表中...")
-    county_select_element = wait.until(EC.visibility_of_element_located((By.ID, "county")))
-    county_select = Select(county_select_element)
-    # 獲取所有縣市 (除了第一個"請選擇")
-    county_map = {option.get_attribute('value'): option.text for option in county_select.options if option.get_attribute('value')}
-
-    # --- 2.6 尋找「查詢」按鈕 (在彈出視窗內) ---
-    search_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), '查詢')]")))
-
-    # --- 3. (HTML 爬蟲) 步驟三：遍歷縣市，直接爬取 HTML 表格 ---
-    print("\n開始遍歷所有縣市並直接爬取 HTML 表格...")
-
-    for county_code, county_name in county_map.items():
-        print(f"  正在爬取: {county_name} (代碼: {county_code}) ...")
-        
+        actions = ActionChains(driver)
+        actions.move_to_element(element).pause(random.uniform(0.5, 1.5)).click().perform()
+        return True
+    except:
+        # 降級使用 JS 點擊
         try:
-            # 選擇縣市
-            # (新) 重新定位 county_select 元素，防止 StaleElementReferenceException
-            county_select = Select(wait.until(EC.visibility_of_element_located((By.ID, "county"))))
-            county_select.select_by_value(county_code)
-            time.sleep(1) 
+            driver.execute_script("arguments[0].click();", element)
+            return True
+        except:
+            return False
+
+def smart_scrape_county(driver, wait, county_code, county_name):
+    """
+    智能爬取單一縣市
+    使用多種策略避免被封鎖
+    """
+    print(f"\n   【{county_name}】開始爬取...")
+    
+    try:
+        # 策略 1: 模擬真人操作 - 慢慢選擇縣市
+        county_select = Select(wait.until(
+            EC.visibility_of_element_located((By.ID, "county"))
+        ))
+        
+        # 隨機滾動一下 (模擬真人)
+        driver.execute_script("window.scrollBy(0, 100);")
+        random_delay(0.5, 1)
+        
+        county_select.select_by_value(county_code)
+        random_delay(1, 2)
+        
+        # 策略 2: 找到並點擊查詢按鈕
+        search_button = wait.until(
+            EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), '查詢')]"))
+        )
+        
+        if not human_like_click(driver, search_button):
+            print(f"      ⚠️ 點擊查詢按鈕失敗")
+            return []
+        
+        random_delay(2, 4)  # 等待結果載入
+        
+        # 策略 3: 檢查是否有資料
+        try:
+            # 等待表格出現
+            wait.until(EC.presence_of_element_located((By.XPATH, "//table[@class='datagrid-btable']")))
             
-            # 點擊查詢按鈕
-            # (新) 重新定位 search_button 元素
-            search_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), '查詢')]")))
-            driver.execute_script("arguments[0].click();", search_button)
-            time.sleep(3) # 給予充足時間讓表格載入 (關鍵)
-
-            # --- 核心邏輯：偵測總頁數 ---
-            try:
-                # 尋找總頁數元素
-                total_records_element = wait.until(EC.presence_of_element_located((By.XPATH, "//div[contains(@class, 'datagrid-pager') and contains(text(), '共')]")))
-                text = total_records_element.text
-                total_records_match = re.search(r'共\s*(\d+)\s*筆', text) # (新) 修正 Regex
-                total_records = int(total_records_match.group(1)) if total_records_match else 0
-            except Exception:
-                total_records = 0 # 如果找不到，當作 0 筆
-
+            # 取得總筆數
+            pager_element = driver.find_element(By.XPATH, "//div[contains(@class, 'datagrid-pager')]")
+            pager_text = pager_element.text
+            match = re.search(r'共\s*(\d+)\s*筆', pager_text)
+            total_records = int(match.group(1)) if match else 0
+            
             if total_records == 0:
-                print(f"    -> {county_name} 沒有資料或載入失敗。")
-                continue
-
-            PAGE_SIZE = 10 # 每次只顯示 10 筆
-            total_pages = math.ceil(total_records / PAGE_SIZE)
-
-            # --- 子迴圈：遍歷每一頁 ---
-            current_county_data = []
+                print(f"      ℹ️ 無資料")
+                return []
             
-            for page_num in range(1, total_pages + 1):
-                print(f"    -> 正在讀取 {county_name} 第 {page_num}/{total_pages} 頁...")
-                # 1. 爬取當前頁面資料
-                table_element = wait.until(EC.presence_of_element_located((By.XPATH, "//table[@class='datagrid-btable']")))
-                table_html = table_element.get_attribute('outerHTML')
+            PAGE_SIZE = 10
+            total_pages = math.ceil(total_records / PAGE_SIZE)
+            print(f"      📊 共 {total_records} 筆, {total_pages} 頁")
+            
+        except Exception as e:
+            print(f"      ❌ 無法取得資料: {e}")
+            return []
+        
+        # 策略 4: 逐頁爬取,但加入智能延遲
+        county_data = []
+        
+        for page_num in range(1, min(total_pages + 1, 100)):  # 限制最多100頁,避免卡太久
+            print(f"      第 {page_num}/{total_pages} 頁", end="", flush=True)
+            
+            try:
+                # 等待表格穩定
+                table = wait.until(
+                    EC.presence_of_element_located((By.XPATH, "//table[@class='datagrid-btable']"))
+                )
                 
-                # 使用 BeautifulSoup 清洗資料
+                # 短暫延遲,確保資料完全載入
+                time.sleep(0.5)
+                
+                # 取得 HTML
+                table_html = table.get_attribute('outerHTML')
                 soup = BeautifulSoup(table_html, 'html.parser')
+                
+                # 解析行
                 rows = soup.find_all('tr')
+                page_count = 0
                 
                 for row in rows:
                     cols = row.find_all('td')
-                    fields = [col.get('field') for col in cols if col.get('field')]
-                    data = [col.get_text(strip=True) for col in cols]
-                    
-                    if len(data) >= 11 and 'orgName' in fields: # (新) 確保欄位對應
-                        row_data = {
-                            'scraped_county_name': county_name,
-                            'orgName': data[fields.index('orgName')] if 'orgName' in fields else '',
-                            # *** (關鍵修正) 移除了上一版錯誤的 'KA' ***
-                            'address': data[fields.index('address')] if 'address' in fields else '',
-                            'phone': data[fields.index('phone')] if 'phone' in fields else '',
-                            'payDetail': data[fields.index('payDetail')] if 'payDetail' in fields else '',
-                            'strTeleconsultation': data[fields.index('strTeleconsultation')] if 'strTeleconsultation' in fields else '',
-                            'thisWeekCount': data[fields.index('thisWeekCount')] if 'thisWeekCount' in fields else '0',
-                            'nextWeekCount': data[fields.index('nextWeekCount')] if 'nextWeekCount' in fields else '0',
-                            'next2WeekCount': data[fields.index('next2WeekCount')] if 'next2WeekCount' in fields else '0',
-                            'next3WeekCount': data[fields.index('next3WeekCount')] if 'next3WeekCount' in fields else '0',
-                            'editDate': data[fields.index('editDate')] if 'editDate' in fields else ''
-                        }
-                        current_county_data.append(row_data)
-
-                # 2. 點擊下一頁 (如果不是最後一頁)
+                    if len(cols) >= 10:
+                        try:
+                            # 提取純文字 (移除 HTML 標籤)
+                            def get_text(index):
+                                if index < len(cols):
+                                    return BeautifulSoup(str(cols[index]), 'html.parser').get_text(strip=True)
+                                return ''
+                            
+                            row_data = {
+                                'scraped_county_name': county_name,
+                                'countyName': get_text(0),
+                                'orgName': get_text(1),
+                                'phone': get_text(2),
+                                'address': get_text(3),
+                                'payDetail': get_text(4),
+                                'thisWeekCount': get_text(5) or '0',
+                                'nextWeekCount': get_text(6) or '0',
+                                'next2WeekCount': get_text(7) or '0',
+                                'next3WeekCount': get_text(8) or '0',
+                                'editDate': get_text(9),
+                                'strTeleconsultation': get_text(10) if len(cols) > 10 else ''
+                            }
+                            
+                            # 只保存有機構名稱的資料
+                            if row_data['orgName']:
+                                county_data.append(row_data)
+                                page_count += 1
+                        except Exception as e:
+                            continue
+                
+                print(f" → {page_count} 筆", flush=True)
+                
+                # 策略 5: 點擊下一頁前,隨機延遲
                 if page_num < total_pages:
-                    next_page_button = driver.find_element(By.XPATH, "//div[contains(@class, 'datagrid-pager')]//span[contains(@class, 'pagination-next')]")
-                    driver.execute_script("arguments[0].click();", next_page_button)
-                    time.sleep(2.0) # 讓表格有時間刷新
-
-            all_institutions_data.extend(current_county_data)
-            print(f"  ✅ {county_name} 爬取完畢。共 {total_records} 筆。")
-
-        except Exception as e:
-            print(f"  爬取 {county_name} 時發生錯誤: {e}")
-
-except Exception as e:
-    print(f"Selenium 執行失敗: {e}")
-finally:
-    if driver:
-        driver.quit()
-        print("\n  Selenium 瀏覽器已關閉。")
-
-
-# --- 5. 儲存原始資料 ---
-if not all_institutions_data:
-    print("未爬取到任何機構資料。")
-    sys.exit(1) # 退出程式碼，狀態碼 1 (失敗)
-else:
-    df_final = pd.DataFrame(all_institutions_data)
-    df_final = df_final.drop_duplicates(subset=['orgName', 'address', 'phone'])
+                    # 每爬 3 頁休息久一點
+                    if page_num % 3 == 0:
+                        random_delay(2, 4)
+                    else:
+                        random_delay(1, 2)
+                    
+                    try:
+                        next_btn = driver.find_element(
+                            By.XPATH,
+                            "//div[contains(@class, 'datagrid-pager')]//a[contains(@class, 'pagination-next')]"
+                        )
+                        
+                        # 檢查按鈕是否可點擊
+                        if 'l-btn-disabled' in next_btn.get_attribute('class'):
+                            print(f"      ✓ 已到最後一頁")
+                            break
+                        
+                        if not human_like_click(driver, next_btn):
+                            print(f"      ⚠️ 下一頁點擊失敗")
+                            break
+                        
+                    except Exception as e:
+                        print(f"      ⚠️ 找不到下一頁按鈕")
+                        break
+            
+            except Exception as e:
+                print(f" ❌ 錯誤: {str(e)[:50]}")
+                break
+        
+        print(f"      ✅ {county_name} 完成, 共 {len(county_data)} 筆")
+        return county_data
     
-    # (新) 確保數字欄位是數字，如果不是就設為 0
+    except Exception as e:
+        print(f"      ❌ {county_name} 失敗: {e}")
+        return []
+
+# ===== 主程式 =====
+def main():
+    all_institutions_data = []
+    driver = None
+    
+    try:
+        print("=" * 70)
+        print("🚀 智能自動更新爬蟲 - 開始執行")
+        print("=" * 70)
+        
+        # 1. 啟動瀏覽器
+        print("\n【步驟 1/6】啟動瀏覽器...")
+        
+        service = Service(executable_path="/usr/bin/chromedriver")
+        
+        options = webdriver.ChromeOptions()
+        options.add_argument('--headless=new')
+        options.add_argument('--no-sandbox')
+        options.add_argument('--disable-dev-shm-usage')
+        options.add_argument('--disable-gpu')
+        options.add_argument('--window-size=1920,1080')
+        
+        # 重要: 加入 User-Agent 模擬真實瀏覽器
+        options.add_argument('--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
+        
+        driver = webdriver.Chrome(service=service, options=options)
+        driver.set_page_load_timeout(WAIT_TIME + 10)
+        wait = WebDriverWait(driver, WAIT_TIME)
+        
+        print("   ✓ 瀏覽器啟動成功")
+        
+        # 2. 載入頁面
+        print("\n【步驟 2/6】載入網頁...")
+        driver.get(main_page_url)
+        random_delay(2, 3)
+        print("   ✓ 網頁載入完成")
+        
+        # 3. 處理 Cookie
+        print("\n【步驟 3/6】處理 Cookie...")
+        try:
+            cookie_btn = wait.until(
+                EC.element_to_be_clickable((By.XPATH, "//*[contains(text(), '同意') or contains(text(), '接受')]"))
+            )
+            human_like_click(driver, cookie_btn)
+            random_delay(1, 2)
+            print("   ✓ Cookie 已處理")
+        except:
+            print("   ℹ️ 無 Cookie 視窗")
+        
+        # 4. 開啟查詢視窗
+        print("\n【步驟 4/6】開啟查詢視窗...")
+        query_button = wait.until(
+            EC.element_to_be_clickable((By.XPATH, "//a[@class='queryServiceOrg']"))
+        )
+        human_like_click(driver, query_button)
+        random_delay(2, 3)
+        print("   ✓ 查詢視窗已開啟")
+        
+        # 5. 取得縣市列表
+        print("\n【步驟 5/6】讀取縣市列表...")
+        county_select_element = wait.until(
+            EC.visibility_of_element_located((By.ID, "county"))
+        )
+        county_select = Select(county_select_element)
+        
+        county_map = {}
+        for option in county_select.options:
+            value = option.get_attribute('value')
+            text = option.text
+            if value:
+                county_map[value] = text
+        
+        print(f"   ✓ 找到 {len(county_map)} 個縣市")
+        
+        # 6. 開始爬取
+        print("\n【步驟 6/6】開始爬取資料...")
+        print("=" * 70)
+        
+        for idx, (county_code, county_name) in enumerate(county_map.items(), 1):
+            print(f"\n進度: {idx}/{len(county_map)}")
+            
+            county_data = smart_scrape_county(driver, wait, county_code, county_name)
+            all_institutions_data.extend(county_data)
+            
+            # 每爬完一個縣市,休息一下
+            if idx < len(county_map):
+                delay = random.uniform(3, 6)
+                print(f"   💤 休息 {delay:.1f} 秒...")
+                time.sleep(delay)
+        
+        print("\n" + "=" * 70)
+        print("✅ 爬取完成!")
+        print("=" * 70)
+    
+    except Exception as e:
+        print(f"\n❌ 爬蟲執行失敗: {e}")
+        import traceback
+        traceback.print_exc()
+        sys.exit(1)
+    
+    finally:
+        if driver:
+            driver.quit()
+            print("\n瀏覽器已關閉")
+    
+    # 7. 儲存資料
+    print("\n【儲存資料】")
+    
+    if not all_institutions_data:
+        print("❌ 未抓到任何資料")
+        sys.exit(1)
+    
+    df = pd.DataFrame(all_institutions_data)
+    
+    # 去重
+    original_count = len(df)
+    df = df.drop_duplicates(subset=['orgName', 'address', 'phone'])
+    print(f"   去重: {original_count} → {len(df)} 筆")
+    
+    # 清理數字欄位
     num_cols = ['thisWeekCount', 'nextWeekCount', 'next2WeekCount', 'next3WeekCount']
     for col in num_cols:
-        df_final[col] = pd.to_numeric(df_final[col], errors='coerce').fillna(0).astype(int)
+        df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0).astype(int)
+    
+    # 儲存
+    df.to_csv(OUTPUT_CSV_NAME, index=False, encoding='utf-8-sig')
+    
+    print(f"\n✅ 成功!")
+    print(f"   總筆數: {len(df)}")
+    print(f"   檔案: {OUTPUT_CSV_NAME}")
+    print("\n" + "=" * 70)
 
-    df_final.to_csv(OUTPUT_CSV_NAME, index=False, encoding='utf-8-sig')
-    print(f"\n✅ 資料已成功儲存至 '{OUTPUT_CSV_NAME}'")
-    print(f"總共爬取到 {len(df_final)} 筆機構資料。")
+if __name__ == "__main__":
+    main()
