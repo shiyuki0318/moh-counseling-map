@@ -38,7 +38,37 @@ def get_user_location(address):
 # --- 3. APP 主程式 ---
 st.set_page_config(page_title="公費心理諮商地圖", layout="wide")
 
-# (已移除「混合雲版」)
+
+# *** (您的修改 1) 注入 CSS 更改「網站配色」 ***
+# 我們使用您提供的 #2E8B57 (深綠) 和 #8FBC8F (淺綠)
+st.markdown(
+    """
+    <style>
+    /* 主要標題的顏色 */
+    .st-emotion-cache-10trblm {
+        color: #2E8B57; /* (深綠) */
+    }
+    
+    /* 側邊欄 (Sidebar) 標題的顏色 */
+    .st-emotion-cache-r8a62r, .st-emotion-cache-1f2d01k {
+        color: #2E8B57; /* (深綠) */
+    }
+    
+    /* 側邊欄背景 (使用較淺的綠色) */
+    [data-testid="stSidebar"] {
+        background-color: #F0F8F0; /* (淡綠色，類似 #8FBC8F 但更淺) */
+    }
+
+    /* 成功訊息 (st.success) 的綠色 */
+    [data-testid="stNotification"] {
+        background-color: #DDFFDD; /* 淺綠底 */
+    }
+    </style>
+    """,
+    unsafe_allow_html=True
+)
+
+
 st.title("🏥 公費心理諮商 - 即時地圖搜尋系統")
 st.write("您可以選擇「離我最近」來搜尋，或「瀏覽全台」來查看特定縣市的資源。")
 
@@ -106,37 +136,34 @@ if df_filtered.empty:
 else:
     st.success(f"在地圖範圍內找到 {len(df_filtered)} 間符合條件的診所：")
     
-    # *** (您的修改 3) 使用自訂 HEX 顏色 ***
+    # (使用自訂 HEX 顏色)
     for idx, row in df_filtered.iterrows():
         
-        # (新) 您的自訂顏色邏輯
+        # (您的自訂顏色邏輯)
         if row['thisWeekCount'] > 0: 
-            # 有名額 - 使用您提供的亮綠色 (#3CB371)
-            fill_color = '#3CB371' 
-            # 使用稍深的 #2E8B57 當邊框
+            fill_color = '#3CB371' # 有名額 (亮綠)
             border_color = '#2E8B57' 
-            radius = 8 # 稍大
+            radius = 8 
         else: 
-            # 無名額 - 使用您提供的暗綠色 (#556B2F)
-            fill_color = '#556B2F' 
+            fill_color = '#556B2F' # 無名額 (暗綠)
             border_color = '#556B2F'
-            radius = 5 # 稍小
+            radius = 5 
         
         popup_html = f"<b>{row['orgName']}</b><hr style='margin: 3px;'>"
         if 'distance' in df_filtered.columns:
              popup_html += f"<b>距離:</b> {row['distance']:.2f} 公里<br>"
         popup_html += f"<b>本週名額:</b> <b>{int(row['thisWeekCount'])}</b><br><b>地址:</b> {row['address']}<br><b>電話:</b> {row['phone']}"
         
-        # (新) 使用 CircleMarker 來支援自訂 Hex 顏色
+        # (使用 CircleMarker 來支援自訂 Hex 顏色)
         folium.CircleMarker(
             location=[row['lat'], row['lng']],
             radius=radius,
             popup=folium.Popup(popup_html, max_width=300),
-            color=border_color,      # 圓圈邊框顏色
+            color=border_color,      
             fill=True,
-            fill_color=fill_color,   # 圓圈填充顏色
-            fill_opacity=0.7         # 填充透明度
-        ).add_to(marker_cluster) # 仍然加入到群組中
+            fill_color=fill_color,   
+            fill_opacity=0.7         
+        ).add_to(marker_cluster) 
         
     st_folium(m, width="100%", height=500, returned_objects=[])
     
