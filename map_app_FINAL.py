@@ -6,6 +6,7 @@ from streamlit_folium import st_folium
 from geopy.geocoders import ArcGIS 
 from folium.plugins import LocateControl, MarkerCluster
 import time
+import urllib.parse # (新) 導入 URL 編碼工具
 
 # --- (新) 定義 GitHub 上的「原始資料」URL ---
 # (重要！) 請將 'shiyuki0318/moh-counseling-map' 替換成您自己的 GitHub 帳號和倉庫名稱
@@ -18,6 +19,14 @@ def load_data(url):
         df = pd.read_csv(url, encoding='utf-8-sig') 
         df = df.dropna(subset=['lat', 'lng'])
         df['thisWeekCount'] = pd.to_numeric(df['thisWeekCount'], errors='coerce').fillna(0).astype(int)
+        
+        # (新) 預先建立 Google Maps 搜尋連結
+        # 我們將 "機構名稱" + " " + "地址" 進行 URL 編碼
+        df['google_maps_query'] = (df['orgName'] + ' ' + df['address']).apply(
+            lambda x: urllib.parse.quote_plus(str(x))
+        )
+        df['google_maps_url'] = "https://www.google.com/maps/search/?api=1&query=" + df['google_maps_query']
+        
         return df
     except Exception as e:
         st.error(f"從 GitHub 載入資料時發生錯誤: {e}")
@@ -38,36 +47,22 @@ def get_user_location(address):
 # --- 3. APP 主程式 ---
 st.set_page_config(page_title="公費心理諮商地圖", layout="wide")
 
-
-# *** (您的修改 1) 注入 CSS 更改「網站配色」 ***
-# 我們使用您提供的 #2E8B57 (深綠) 和 #8FBC8F (淺綠)
+# (注入 CSS 更改「網站配色」)
 st.markdown(
     """
     <style>
     /* 主要標題的顏色 */
-    .st-emotion-cache-10trblm {
-        color: #2E8B57; /* (深綠) */
-    }
-    
+    .st-emotion-cache-10trblm { color: #2E8B57; }
     /* 側邊欄 (Sidebar) 標題的顏色 */
-    .st-emotion-cache-r8a62r, .st-emotion-cache-1f2d01k {
-        color: #2E8B57; /* (深綠) */
-    }
-    
+    .st-emotion-cache-r8a62r, .st-emotion-cache-1f2d01k { color: #2E8B57; }
     /* 側邊欄背景 (使用較淺的綠色) */
-    [data-testid="stSidebar"] {
-        background-color: #F0F8F0; /* (淡綠色，類似 #8FBC8F 但更淺) */
-    }
-
+    [data-testid="stSidebar"] { background-color: #F0F8F0; }
     /* 成功訊息 (st.success) 的綠色 */
-    [data-testid="stNotification"] {
-        background-color: #DDFFDD; /* 淺綠底 */
-    }
+    [data-testid="stNotification"] { background-color: #DDFFDD; }
     </style>
     """,
     unsafe_allow_html=True
 )
-
 
 st.title("🏥 公費心理諮商 - 即時地圖搜尋系統")
 st.write("您可以選擇「離我最近」來搜尋，或「瀏覽全台」來查看特定縣市的資源。")
@@ -119,12 +114,8 @@ df_filtered = df_filtered[df_filtered['thisWeekCount'] >= min_slots]
 st.sidebar.header("資料來源")
 st.sidebar.info("本站資料由本地伺服器每日自動爬取並更新。")
 
-
 # --- 5. 視覺化：在地圖上顯示結果 ---
-
-# (使用 'Cartodb Positron' 圖層)
 m = folium.Map(location=map_center, zoom_start=map_zoom, tiles="Cartodb Positron") 
-
 LocateControl(auto_start=False, strings={"title": "顯示我現在的位置", "popup": "您在這裡"}).add_to(m)
 marker_cluster = MarkerCluster().add_to(m)
 
@@ -136,25 +127,21 @@ if df_filtered.empty:
 else:
     st.success(f"在地圖範圍內找到 {len(df_filtered)} 間符合條件的診所：")
     
-    # (使用自訂 HEX 顏色)
     for idx, row in df_filtered.iterrows():
-        
-        # (您的自訂顏色邏輯)
         if row['thisWeekCount'] > 0: 
-            fill_color = '#3CB371' # 有名額 (亮綠)
-            border_color = '#2E8B57' 
-            radius = 8 
+            fill_color = '#3CB371'; border_color = '#2E8B57'; radius = 8 
         else: 
-            fill_color = '#556B2F' # 無名額 (暗綠)
-            border_color = '#556B2F'
-            radius = 5 
+            fill_color = '#556B2F'; border_color = '#556B2F'; radius = 5 
         
         popup_html = f"<b>{row['orgName']}</b><hr style='margin: 3px;'>"
         if 'distance' in df_filtered.columns:
              popup_html += f"<b>距離:</b> {row['distance']:.2f} 公里<br>"
-        popup_html += f"<b>本週名額:</b> <b>{int(row['thisWeekCount'])}</b><br><b>地址:</b> {row['address']}<br><b>電話:</b> {row['phone']}"
+        popup_html += f"<b>本週名額:</b> <b>{int(row['thisWeekCount'])}</b><br>"
+        popup_html += f"<b>地址:</b> {row['address']}<br><b>電話:</b> {row['phone']}<br>"
         
-        # (使用 CircleMarker 來支援自訂 Hex 顏色)
+        # *** (您的修改) 加入「查看 Google 評價」的連結 ***
+        popup_html += f"<a href='{row['google_maps_url']}' target='_blank'><b>[ 點此查看 Google 評價 ]</b></a>"
+        
         folium.CircleMarker(
             location=[row['lat'], row['lng']],
             radius=radius,
@@ -179,17 +166,25 @@ else:
         'address': '地址',
         'phone': '聯絡電話',
         'payDetail': '自付費用',
+        'google_maps_url': 'Google 評價' # (新) 加入評價欄位
     }
     df_display = df_display.rename(columns=CHINESE_COLUMN_MAP)
-    display_columns_chinese = ['機構名稱', '本週名額', '縣市', '地址', '聯絡電話', '自付費用']
+    # (新) 將評價欄位加入顯示
+    display_columns_chinese = ['機構名稱', '本週名額', '縣市', '地址', '聯絡電話', '自付費用', 'Google 評價']
 
     if '距離' in df_display.columns:
         display_columns_chinese.insert(1, '距離') 
         df_display = df_display.sort_values(by='距離') 
+        
         st.dataframe(
             df_display[display_columns_chinese],
             column_config={
-                "距離": st.column_config.NumberColumn(format="%.2f km")
+                "距離": st.column_config.NumberColumn(format="%.2f km"),
+                # *** (您的修改) 將 'Google 評價' 欄位渲染成可點擊的連結 ***
+                "Google 評價": st.column_config.LinkColumn(
+                    "Google 評價",
+                    display_text="點此查看"
+                )
             },
             use_container_width=True,
             hide_index=True 
@@ -197,6 +192,13 @@ else:
     else:
         st.dataframe(
             df_display[display_columns_chinese],
+            column_config={
+                # *** (您的修改) 將 'Google 評價' 欄位渲染成可點擊的連結 ***
+                "Google 評價": st.column_config.LinkColumn(
+                    "Google 評價",
+                    display_text="點此查看"
+                )
+            },
             use_container_width=True,
             hide_index=True 
         )
