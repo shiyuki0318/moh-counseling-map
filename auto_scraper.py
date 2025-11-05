@@ -3,173 +3,133 @@ import time
 import sys
 import urllib3
 import math 
-
-# --- 導入 BeautifulSoup 用於 HTML 清洗 ---
 from bs4 import BeautifulSoup 
 
-# --- 導入 Selenium 的核心工具 ---
+# 導入 Selenium 的核心工具
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import Select
 from selenium.common.exceptions import NoSuchElementException, TimeoutException
-from selenium.webdriver.support.ui import WebDriverWait # 智慧等待
-from selenium.webdriver.support import expected_conditions as EC # 預期條件
+from selenium.webdriver.support.ui import WebDriverWait 
+from selenium.webdriver.support import expected_conditions as EC 
 from selenium.webdriver.chrome.service import Service
-# *** 移除 webdriver_manager 導入 ***
-# from webdriver_manager.chrome import ChromeDriverManager 
 
-# --- 0. 關閉 SSL 憑證驗證的警告訊息 ---
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-
-# --- 1. 定義網址和輸出檔案 ---
+# --- 0. 設置常量 ---
 main_page_url = "https://sps.mohw.gov.tw/mhs"
-inst_api_url = "https://sps.mohw.gov.tw/mhs/Home/QueryServiceOrgJsonList" 
 OUTPUT_CSV_NAME = "MOHW_counseling_data_NEW.csv"
+WAIT_TIME = 30  # 增加連線等待時間
 
 all_institutions_data = [] 
 
-# --- 2. 步驟一和步驟二「合併」 (雲端模式) ---
-print("正在啟動 Selenium 瀏覽器以取得 Token 和縣市列表...")
-county_map = {} 
-token = ""
-driver = None 
-
 try:
     # 2.1 啟動 Chrome (GitHub Actions 修正版)
-    # 我們將 Chromedriver 路徑設定為 GitHub Actions 安裝的位置
-    service = Service(executable_path="/usr/bin/chromedriver") # *** 關鍵修正 ***
-    
+    service = Service(executable_path="/usr/bin/chromedriver")
     options = webdriver.ChromeOptions()
-    # (重要) 啟用 headless 模式 (雲端環境必備)
     options.add_argument('--headless') 
-    # (重要) 雲端環境所需的額外參數
     options.add_argument('--no-sandbox') 
     options.add_argument('--disable-dev-shm-usage')
     options.add_argument('--log-level=3') 
     
     driver = webdriver.Chrome(service=service, options=options)
-    
-    wait = WebDriverWait(driver, 10) 
+    wait = WebDriverWait(driver, WAIT_TIME) 
     
     # 2.2 載入頁面
     driver.get(main_page_url)
-    print("  頁面載入中...")
 
-    # --- 2.3 處理 Cookie 同意彈窗 (如果有的話) ---
+    # --- 處理 Cookie 同意彈窗 ---
     try:
-        cookie_accept_button = wait.until(
-            EC.element_to_be_clickable((By.XPATH, "//*[contains(text(), '同意') or contains(text(), '接受')]"))
-        )
+        cookie_accept_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//*[contains(text(), '同意') or contains(text(), '接受')]")))
         cookie_accept_button.click()
         time.sleep(1) 
     except Exception:
-        pass # 找不到 Cookie 視窗也沒關係
+        pass
 
     # --- 2.4 點擊「心理諮商合作機構查詢」按鈕 ---
     query_button_xpath = "//a[@class='queryServiceOrg']"
-    query_button = wait.until(
-        EC.element_to_be_clickable((By.XPATH, query_button_xpath))
-    )
+    query_button = wait.until(EC.element_to_be_clickable((By.XPATH, query_button_xpath)))
     query_button.click()
-    time.sleep(1) 
+    time.sleep(2) # 等待彈出視窗完全出現
 
-    # --- 2.5 尋找 Token ---
-    token_element = wait.until(
-        EC.presence_of_element_located((By.NAME, "__RequestVerificationToken"))
-    )
-    token = token_element.get_attribute('value')
-
-    # --- 2.6 尋找縣市下拉選單 ---
-    county_select_element = wait.until(
-        EC.visibility_of_element_located((By.ID, "county"))
-    )
+    # --- 2.5 尋找縣市下拉選單並獲取代碼 ---
+    county_select_element = wait.until(EC.visibility_of_element_located((By.ID, "county")))
     county_select = Select(county_select_element)
-    
-    for option in county_select.options:
-        value = option.get_attribute('value')
-        name = option.text
-        if value: 
-            county_map[value] = name
-            
-    # --- 3. 步驟三：使用 Selenium 執行 JS + 處理「真實分頁」 ---
-    print("\n開始(在 Selenium 中)遍歷所有縣市爬取機構資料...")
+    county_map = {option.get_attribute('value'): option.text for option in county_select.options if option.get_attribute('value')}
 
-    js_fetch_script = """
-    var api_url = arguments[0], token = arguments[1], county_code = arguments[2];
-    var page_size = arguments[3], now_page = arguments[4];
-    var callback = arguments[5];
-    
-    var params = new URLSearchParams();
-    params.append('__RequestVerificationToken', token);
-    params.append('county', county_code);
-    params.append('orgName', '');
-    params.append('NowPage', now_page);
-    params.append('PageSize', page_size);
-    params.append('FirstSearch', 'true');
-    params.append('sortCol', '');
-    params.append('sortMode', '');
-    
-    fetch(api_url, {
-        method: 'POST',
-        headers: {
-            'X-Requested-With': 'XMLHttpRequest',
-            'Origin': window.location.origin,
-            'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'
-        },
-        body: params.toString()
-    })
-    .then(response => response.json())
-    .then(data => callback(data))
-    .catch(error => callback({ 'error': error.toString() }));
-    """
-    
-    driver.set_script_timeout(30) 
-    PAGE_SIZE = 10 
-    
+    # --- 2.6 尋找「查詢」按鈕 (在彈出視窗內) ---
+    search_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), '查詢')]")))
+
+    # --- 3. (最終修復) 步驟三：遍歷縣市，直接爬取 HTML 表格 ---
+    print("\n開始遍歷所有縣市並直接爬取 HTML 表格...")
+
     for county_code, county_name in county_map.items():
         print(f"  正在爬取: {county_name} (代碼: {county_code}) ...")
         
         try:
-            # --- 第一次請求 (偵查) ---
-            api_response = driver.execute_async_script(
-                js_fetch_script, inst_api_url, token, county_code, PAGE_SIZE, 1 
-            )
+            # 選擇縣市
+            county_select.select_by_value(county_code)
+            time.sleep(1) 
             
-            if 'error' in api_response:
-                print(f"  JS 偵查失敗: {api_response['error']}")
-                continue
-            
-            total_records = api_response.get('total', 0)
-            institutions_in_page = api_response.get('rows', [])
+            # 點擊查詢按鈕
+            search_button.click()
+            time.sleep(3) # 給予充足時間讓表格載入 (關鍵)
 
-            if total_records == 0 or not institutions_in_page:
+            # --- 核心邏輯：偵測總頁數 ---
+            try:
+                # 尋找總頁數元素 (例如: 顯示 1 到 10, 共 617 筆記錄)
+                total_records_element = wait.until(EC.presence_of_element_located((By.XPATH, "//div[contains(@class, 'datagrid-pager') and contains(text(), '共')]")))
+                text = total_records_element.text
+                import re
+                total_records_match = re.search(r'共(\d+)筆', text)
+                total_records = int(total_records_match.group(1)) if total_records_match else 0
+            except Exception:
+                total_records = 0
+
+            if total_records == 0:
+                print(f"    -> {county_name} 沒有資料或載入失敗。")
                 continue
-            
-            for inst in institutions_in_page:
-                inst['scraped_county_name'] = county_name
-            all_institutions_data.extend(institutions_in_page)
-            
+
+            PAGE_SIZE = 10 # 每次只顯示 10 筆
             total_pages = math.ceil(total_records / PAGE_SIZE)
 
-            # --- 子迴圈：爬取 Page 2 到最後一頁 ---
-            if total_pages > 1:
-                for page_num in range(2, total_pages + 1):
-                    api_response_page = driver.execute_async_script(
-                        js_fetch_script, inst_api_url, token, county_code, PAGE_SIZE, page_num
-                    )
-                    
-                    if 'error' in api_response_page: continue 
+            # --- 子迴圈：遍歷每一頁 ---
+            current_page_data = []
+            
+            # 尋找下一頁按鈕 (->)
+            next_page_button = driver.find_element(By.XPATH, "//span[contains(@class, 'pagination-next')]")
 
-                    institutions_in_page = api_response_page.get('rows', [])
-                    
-                    for inst in institutions_in_page:
-                        inst['scraped_county_name'] = county_name
-                    all_institutions_data.extend(institutions_in_page)
-                    
-                    time.sleep(0.3) 
+            for page_num in range(1, total_pages + 1):
+                # 1. 爬取當前頁面資料
+                table_html = driver.find_element(By.XPATH, "//table[@class='datagrid-btable']").get_attribute('outerHTML')
+                soup = BeautifulSoup(table_html, 'html.parser')
+                rows = soup.find_all('tr')
+                
+                for row in rows:
+                    cols = row.find_all('td')
+                    cols = [ele.text.strip() for ele in cols]
+                    if len(cols) >= 10: # 確保有足夠的欄位
+                        current_page_data.append({
+                            'scraped_county_name': county_name,
+                            'countyName': cols[0], # 縣市別
+                            'orgName': cols[1],    # 機構名稱
+                            'address': cols[2],    # 地址
+                            'phone': cols[3],      # 聯絡電話
+                            'payDetail': cols[4],  # 自付費用
+                            'strTeleconsultation': cols[5], # 提供通訊服務
+                            'thisWeekCount': cols[6], # 本週名額
+                            # ...其他欄位略過以簡化...
+                            'editDate': cols[10] # 資料更新時間
+                        })
+
+                # 2. 點擊下一頁 (如果不是最後一頁)
+                if page_num < total_pages:
+                    next_page_button.click()
+                    time.sleep(1) # 讓表格有時間刷新
+
+            all_institutions_data.extend(current_page_data)
+            print(f"  ✅ {county_name} 爬取完畢。共 {total_records} 筆。")
 
         except Exception as e:
-            print(f"  爬取 {county_name} 時發生未知錯誤: {e}")
+            print(f"  爬取 {county_name} 時發生錯誤: {e}")
 
 except Exception as e:
     print(f"Selenium 執行失敗: {e}")
@@ -182,4 +142,10 @@ finally:
 # --- 5. 儲存原始資料 ---
 if not all_institutions_data:
     print("未爬取到任何機構資料。")
-    sys.exit(1) # 退出程式碼，狀態
+    sys.exit(1)
+else:
+    df = pd.DataFrame(all_institutions_data)
+    # (最終版只需儲存，不需複雜清洗，地理編碼腳本會處理)
+    df.to_csv(OUTPUT_CSV_NAME, index=False, encoding='utf-8-sig')
+    print(f"\n✅ 資料已成功儲存至 '{OUTPUT_CSV_NAME}'")
+    print(f"總共爬取到 {len(df)} 筆機構資料。")
