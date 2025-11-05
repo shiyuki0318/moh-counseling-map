@@ -14,10 +14,6 @@ GITHUB_RAW_URL = "https://raw.githubusercontent.com/shiyuki0318/moh-counseling-m
 # --- 1. 載入資料 (修改版：從 GitHub URL 讀取) ---
 @st.cache_data(ttl=3600) # 快取 1 小時 (3600 秒)
 def load_data(url):
-    """
-    從 GitHub 公開 URL 讀取資料。
-    ttl=3600 代表 APP 每小時會強制重新抓取一次最新資料。
-    """
     try:
         df = pd.read_csv(url, encoding='utf-8-sig') 
         df = df.dropna(subset=['lat', 'lng'])
@@ -42,7 +38,7 @@ def get_user_location(address):
 # --- 3. APP 主程式 ---
 st.set_page_config(page_title="公費心理諮商地圖", layout="wide")
 
-# *** (您的修改 1) 移除「混合雲版」 ***
+# (已移除「混合雲版」)
 st.title("🏥 公費心理諮商 - 即時地圖搜尋系統")
 st.write("您可以選擇「離我最近」來搜尋，或「瀏覽全台」來查看特定縣市的資源。")
 
@@ -96,7 +92,7 @@ st.sidebar.info("本站資料由本地伺服器每日自動爬取並更新。")
 
 # --- 5. 視覺化：在地圖上顯示結果 ---
 
-# *** (您的修改 2) 更改地圖圖層為 'Cartodb Positron' ***
+# (使用 'Cartodb Positron' 圖層)
 m = folium.Map(location=map_center, zoom_start=map_zoom, tiles="Cartodb Positron") 
 
 LocateControl(auto_start=False, strings={"title": "顯示我現在的位置", "popup": "您在這裡"}).add_to(m)
@@ -110,25 +106,37 @@ if df_filtered.empty:
 else:
     st.success(f"在地圖範圍內找到 {len(df_filtered)} 間符合條件的診所：")
     
+    # *** (您的修改 3) 使用自訂 HEX 顏色 ***
     for idx, row in df_filtered.iterrows():
-        # (新) 您的標點顏色邏輯
+        
+        # (新) 您的自訂顏色邏輯
         if row['thisWeekCount'] > 0: 
-            marker_color = 'green' # 有名額
-            icon_name = 'check' 
+            # 有名額 - 使用您提供的亮綠色 (#3CB371)
+            fill_color = '#3CB371' 
+            # 使用稍深的 #2E8B57 當邊框
+            border_color = '#2E8B57' 
+            radius = 8 # 稍大
         else: 
-            marker_color = 'blue' # 無名額
-            icon_name = 'medkit' 
+            # 無名額 - 使用您提供的暗綠色 (#556B2F)
+            fill_color = '#556B2F' 
+            border_color = '#556B2F'
+            radius = 5 # 稍小
         
         popup_html = f"<b>{row['orgName']}</b><hr style='margin: 3px;'>"
         if 'distance' in df_filtered.columns:
              popup_html += f"<b>距離:</b> {row['distance']:.2f} 公里<br>"
         popup_html += f"<b>本週名額:</b> <b>{int(row['thisWeekCount'])}</b><br><b>地址:</b> {row['address']}<br><b>電話:</b> {row['phone']}"
         
-        folium.Marker(
+        # (新) 使用 CircleMarker 來支援自訂 Hex 顏色
+        folium.CircleMarker(
             location=[row['lat'], row['lng']],
+            radius=radius,
             popup=folium.Popup(popup_html, max_width=300),
-            icon=folium.Icon(color=marker_color, icon=icon_name, prefix='fa')
-        ).add_to(marker_cluster) 
+            color=border_color,      # 圓圈邊框顏色
+            fill=True,
+            fill_color=fill_color,   # 圓圈填充顏色
+            fill_opacity=0.7         # 填充透明度
+        ).add_to(marker_cluster) # 仍然加入到群組中
         
     st_folium(m, width="100%", height=500, returned_objects=[])
     
