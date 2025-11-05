@@ -8,20 +8,19 @@ from folium.plugins import LocateControl, MarkerCluster
 import time
 
 # --- (新) 定義 GitHub 上的「原始資料」URL ---
-# 這是根據您的倉庫名稱 'shiyuki0318/moh-counseling-map' 產生的
+# (重要！) 請將 'shiyuki0318/moh-counseling-map' 替換成您自己的 GitHub 帳號和倉庫名稱
 GITHUB_RAW_URL = "https://raw.githubusercontent.com/shiyuki0318/moh-counseling-map/main/MOHW_counseling_data_FINAL.csv"
 
 # --- 1. 載入資料 (修改版：從 GitHub URL 讀取) ---
-@st.cache_data(ttl=3600) # (新) 快取 1 小時 (3600 秒)
+@st.cache_data(ttl=3600) # 快取 1 小時 (3600 秒)
 def load_data(url):
     """
     從 GitHub 公開 URL 讀取資料。
     ttl=3600 代表 APP 每小時會強制重新抓取一次最新資料。
     """
     try:
-        df = pd.read_csv(url, encoding='utf-8-sig') # (新) 直接從 URL 讀取
+        df = pd.read_csv(url, encoding='utf-8-sig') 
         df = df.dropna(subset=['lat', 'lng'])
-        # 預先處理名額，將 None 轉為 0
         df['thisWeekCount'] = pd.to_numeric(df['thisWeekCount'], errors='coerce').fillna(0).astype(int)
         return df
     except Exception as e:
@@ -42,10 +41,11 @@ def get_user_location(address):
 
 # --- 3. APP 主程式 ---
 st.set_page_config(page_title="公費心理諮商地圖", layout="wide")
-st.title("🏥 公費心理諮商 - 即時地圖搜尋系統 (混合雲版)")
+
+# *** (您的修改 1) 移除「混合雲版」 ***
+st.title("🏥 公費心理諮商 - 即時地圖搜尋系統")
 st.write("您可以選擇「離我最近」來搜尋，或「瀏覽全台」來查看特定縣市的資源。")
 
-# (新) 讀取資料
 df_all = load_data(GITHUB_RAW_URL)
 
 if df_all.empty:
@@ -90,14 +90,15 @@ else:
 min_slots = st.sidebar.slider("本週至少剩餘名額", 0, 20, 1, 1)
 df_filtered = df_filtered[df_filtered['thisWeekCount'] >= min_slots]
     
-# --- (新) 移除「資料更新」按鈕 ---
-# (雲端 App 不再需要這個功能)
 st.sidebar.header("資料來源")
 st.sidebar.info("本站資料由本地伺服器每日自動爬取並更新。")
 
 
 # --- 5. 視覺化：在地圖上顯示結果 ---
-m = folium.Map(location=map_center, zoom_start=map_zoom) 
+
+# *** (您的修改 2) 更改地圖圖層為 'Cartodb Positron' ***
+m = folium.Map(location=map_center, zoom_start=map_zoom, tiles="Cartodb Positron") 
+
 LocateControl(auto_start=False, strings={"title": "顯示我現在的位置", "popup": "您在這裡"}).add_to(m)
 marker_cluster = MarkerCluster().add_to(m)
 
@@ -110,8 +111,13 @@ else:
     st.success(f"在地圖範圍內找到 {len(df_filtered)} 間符合條件的診所：")
     
     for idx, row in df_filtered.iterrows():
-        if row['thisWeekCount'] > 0: marker_color = 'green'; icon_name = 'check' 
-        else: marker_color = 'blue'; icon_name = 'medkit' 
+        # (新) 您的標點顏色邏輯
+        if row['thisWeekCount'] > 0: 
+            marker_color = 'green' # 有名額
+            icon_name = 'check' 
+        else: 
+            marker_color = 'blue' # 無名額
+            icon_name = 'medkit' 
         
         popup_html = f"<b>{row['orgName']}</b><hr style='margin: 3px;'>"
         if 'distance' in df_filtered.columns:
