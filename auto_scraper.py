@@ -65,7 +65,7 @@ try:
     query_button_xpath = "//a[@class='queryServiceOrg']"
     query_button = wait.until(EC.element_to_be_clickable((By.XPATH, query_button_xpath)))
     driver.execute_script("arguments[0].click();", query_button) # 使用 JS 點擊更穩定
-    time.sleep(2) # 等待彈出視窗完全出現
+    time.sleep(2) # 等待彈出視G 窗完全出現
 
     # --- 2.5 尋找縣市下拉選單並獲取代碼 ---
     print("  正在讀取縣市列表中...")
@@ -135,6 +135,7 @@ try:
                         row_data = {
                             'scraped_county_name': county_name,
                             'orgName': data[fields.index('orgName')] if 'orgName' in fields else '',
+KA
                             'address': data[fields.index('address')] if 'address' in fields else '',
                             'phone': data[fields.index('phone')] if 'phone' in fields else '',
                             'payDetail': data[fields.index('payDetail')] if 'payDetail' in fields else '',
