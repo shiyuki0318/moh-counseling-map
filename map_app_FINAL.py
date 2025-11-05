@@ -121,11 +121,49 @@ else:
         
     st_folium(m, width="100%", height=500, returned_objects=[])
     
-    # 6. 顯示表格
-    st.subheader("詳細資料列表")
-    display_columns = ['orgName', 'thisWeekCount', 'scraped_county_name', 'address', 'phone', 'payDetail']
-    if 'distance' in df_filtered.columns:
-        display_columns.insert(1, 'distance') 
-        st.dataframe(df_filtered.sort_values(by='distance')[display_columns].style.format({'distance': '{:.2f} km'}))
-    else:
-        st.dataframe(df_filtered[display_columns])
+# 6. 顯示表格 (中文標題版)
+st.subheader("詳細資料列表")
+
+# (新) 建立一個 DataFrame 專門用於顯示
+df_display = df_filtered.copy()
+
+# (新) 建立中文欄位對照表
+CHINESE_COLUMN_MAP = {
+    'orgName': '機構名稱',
+    'distance': '距離', # 單位 'km' 我們會用 column_config 加上
+    'thisWeekCount': '本週名額',
+    'scraped_county_name': '縣市',
+    'address': '地址',
+    'phone': '聯絡電話',
+    'payDetail': '費用',
+    'editDate': '資料更新' 
+}
+
+# (新) 執行改名
+df_display = df_display.rename(columns=CHINESE_COLUMN_MAP)
+
+# (新) 建立「要顯示的」中文欄位列表
+# (注意：我們現在使用改名後的中文欄位)
+display_columns_chinese = ['機構名稱', '本週名額', '縣市', '地址', '聯絡電話', '費用']
+
+# 檢查是否有 '距離' 欄位 (在 "離我最近" 模式下才有)
+if '距離' in df_display.columns:
+    display_columns_chinese.insert(1, '距離') 
+    df_display = df_display.sort_values(by='距離') # 依照距離排序
+    
+    # (新) 使用 st.dataframe 顯示中文版，並設定 '距離' 欄位的格式
+    st.dataframe(
+        df_display[display_columns_chinese],
+        column_config={
+            # (新) 替 '距離' 欄位加上 'km' 後綴，並格式化到小數點後 2 位
+            "距離": st.column_config.NumberColumn(format="%.2f km")
+        },
+        use_container_width=True # (新) 讓表格填滿寬度
+    )
+else:
+    # (新) "瀏覽全台" 模式 (沒有距離)
+    st.dataframe(
+        df_display[display_columns_chinese],
+        use_container_width=True # (新) 讓表格填滿寬度
+    )
+
