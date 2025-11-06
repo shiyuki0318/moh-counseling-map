@@ -55,7 +55,7 @@ st.markdown(
     /* 側邊欄 (Sidebar) 標題的顏色 */
     .st-emotion-cache-r8a62r, .st-emotion-cache-1f2d01k { color: #2E8B57; }
     /* 側邊欄背景 (使用較淺的綠色) */
-    [data-testid="stSidebar"] { background-color: #8FBC8F; }
+    [data-testid="stSidebar"] { background-color: #EEEAE7; }
     /* 成功訊息 (st.success) 的綠色 */
     [data-testid="stNotification"] { background-color: #DDFFDD; }
     </style>
