@@ -112,8 +112,7 @@ min_slots = st.sidebar.slider("本週至少剩餘名額", 0, 20, 1, 1)
 df_filtered = df_filtered[df_filtered['thisWeekCount'] >= min_slots]
     
 st.sidebar.header("資料來源")
-st.sidebar.info("本站資料為管理員手動更新\n
-                  (盡全力維持最新資訊)。")
+st.sidebar.info("本站資料為管理員手動更新(盡全力維持最新資訊)。")
 
 # --- 5. 視覺化：在地圖上顯示結果 ---
 m = folium.Map(location=map_center, zoom_start=map_zoom, tiles="Cartodb Positron") 
@@ -203,4 +202,5 @@ else:
             use_container_width=True,
             hide_index=True 
         )
+
 
