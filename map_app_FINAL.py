@@ -6,13 +6,12 @@ from streamlit_folium import st_folium
 from geopy.geocoders import ArcGIS 
 from folium.plugins import LocateControl, MarkerCluster
 import time
-import urllib.parse # (新) 導入 URL 編碼工具
+import urllib.parse #導入 URL 編碼工具
 
-# --- (新) 定義 GitHub 上的「原始資料」URL ---
-# (重要！) 請將 'shiyuki0318/moh-counseling-map' 替換成您自己的 GitHub 帳號和倉庫名稱
+# 定義 GitHub 上的「原始資料」URL
 GITHUB_RAW_URL = "https://raw.githubusercontent.com/shiyuki0318/moh-counseling-map/main/MOHW_counseling_data_FINAL.csv"
 
-# --- 1. 載入資料 (修改版：從 GitHub URL 讀取) ---
+# 1. 載入資料 (修改版：從 GitHub URL 讀取)
 @st.cache_data(ttl=3600) # 快取 1 小時 (3600 秒)
 def load_data(url):
     try:
@@ -20,7 +19,7 @@ def load_data(url):
         df = df.dropna(subset=['lat', 'lng'])
         df['thisWeekCount'] = pd.to_numeric(df['thisWeekCount'], errors='coerce').fillna(0).astype(int)
         
-        # (新) 預先建立 Google Maps 搜尋連結
+        # 預先建立 Google Maps 搜尋連結
         # 我們將 "機構名稱" + " " + "地址" 進行 URL 編碼
         df['google_maps_query'] = (df['orgName'] + ' ' + df['address']).apply(
             lambda x: urllib.parse.quote_plus(str(x))
@@ -33,7 +32,7 @@ def load_data(url):
         st.info("請檢查 GITHUB_RAW_URL 變數是否設定正確。")
         return pd.DataFrame() 
 
-# --- 2. 定位使用者地址 (快取) ---
+# 2. 定位使用者地址 (快取)
 @st.cache_data 
 def get_user_location(address):
     if not address: return None
@@ -73,7 +72,7 @@ if df_all.empty:
     st.warning("資料載入中... 如果持續顯示錯誤，請稍後再試。")
     st.stop() 
     
-# --- 4. 側邊欄與篩選邏輯 ---
+# 4. 側邊欄與篩選邏輯
 st.sidebar.header("Step 1: 選擇搜尋模式")
 search_mode = st.sidebar.radio("您想如何搜尋？", ('離我最近', '瀏覽全台'))
 st.sidebar.header("Step 2: 設定篩選條件")
@@ -112,9 +111,9 @@ min_slots = st.sidebar.slider("本週至少剩餘名額", 0, 20, 1, 1)
 df_filtered = df_filtered[df_filtered['thisWeekCount'] >= min_slots]
     
 st.sidebar.header("資料來源")
-st.sidebar.info("本站資料為管理員手動更新\n(盡全力維持最新資訊)。")
+st.sidebar.info("本站資料為管理員手動更新(盡全力維持最新資訊)。")
 
-# --- 5. 視覺化：在地圖上顯示結果 ---
+# 5. 視覺化：在地圖上顯示結果
 m = folium.Map(location=map_center, zoom_start=map_zoom, tiles="Cartodb Positron") 
 LocateControl(auto_start=False, strings={"title": "顯示我現在的位置", "popup": "您在這裡"}).add_to(m)
 marker_cluster = MarkerCluster().add_to(m)
@@ -139,7 +138,7 @@ else:
         popup_html += f"<b>本週名額:</b> <b>{int(row['thisWeekCount'])}</b><br>"
         popup_html += f"<b>地址:</b> {row['address']}<br><b>電話:</b> {row['phone']}<br>"
         
-        # *** (您的修改) 加入「查看 Google 評價」的連結 ***
+        # 加入「查看 Google 評價」的連結
         popup_html += f"<a href='{row['google_maps_url']}' target='_blank'><b>[ 點此查看 Google 評價 ]</b></a>"
         
         folium.CircleMarker(
@@ -166,10 +165,10 @@ else:
         'address': '地址',
         'phone': '聯絡電話',
         'payDetail': '自付費用',
-        'google_maps_url': 'Google 評價' # (新) 加入評價欄位
+        'google_maps_url': 'Google 評價' # 加入評價欄位連結
     }
     df_display = df_display.rename(columns=CHINESE_COLUMN_MAP)
-    # (新) 將評價欄位加入顯示
+    # 將評價欄位加入顯示
     display_columns_chinese = ['機構名稱', '本週名額', '縣市', '地址', '聯絡電話', '自付費用', 'Google 評價']
 
     if '距離' in df_display.columns:
@@ -180,7 +179,7 @@ else:
             df_display[display_columns_chinese],
             column_config={
                 "距離": st.column_config.NumberColumn(format="%.2f km"),
-                # *** (您的修改) 將 'Google 評價' 欄位渲染成可點擊的連結 ***
+                # 將 'Google 評價' 欄位渲染成可點擊的連結
                 "Google 評價": st.column_config.LinkColumn(
                     "Google 評價",
                     display_text="點此查看"
@@ -193,7 +192,7 @@ else:
         st.dataframe(
             df_display[display_columns_chinese],
             column_config={
-                # *** (您的修改) 將 'Google 評價' 欄位渲染成可點擊的連結 ***
+                # 將 'Google 評價' 欄位變成可點擊的連結
                 "Google 評價": st.column_config.LinkColumn(
                     "Google 評價",
                     display_text="點此查看"
@@ -202,6 +201,7 @@ else:
             use_container_width=True,
             hide_index=True 
         )
+
 
 
 
