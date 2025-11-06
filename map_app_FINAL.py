@@ -84,7 +84,7 @@ map_zoom = 8
 
 if search_mode == '離我最近':
     st.sidebar.subheader("📍 您的位置")
-    user_address = st.sidebar.text_input("輸入您的地址", "臺北市中正區重慶南路一段122號")
+    user_address = st.sidebar.text_input("輸入您的地址", "臺北市中正區公園路30號3樓")
     distance_km = st.sidebar.slider("搜尋範圍 (公里)", 1.0, 10.0, 3.0, 0.5)
     user_loc = get_user_location(user_address)
     
@@ -201,6 +201,7 @@ else:
             use_container_width=True,
             hide_index=True 
         )
+
 
 
 
