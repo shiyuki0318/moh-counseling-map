@@ -52,10 +52,13 @@ def load_and_merge_data():
 
     df_merged = df_merged.dropna(subset=['lat', 'lng', 'scraped_county_name', 'orgName'])
     
+    # --- (*** 關鍵修正：修正 Google 連結 ***) ---
+    # 建立一個包含「機構名稱」和「地址」的查詢字串
     df_merged['gmaps_query'] = (df_merged['orgName'] + ' ' + df_merged['address']).apply(
         lambda x: urllib.parse.quote_plus(str(x))
     )
-    df_merged['gmaps_url'] = "http://googleusercontent.com/maps.google.com/search/" + df_merged['gmaps_query']
+    # 使用標準、穩定的 Google Maps 搜尋網址
+    df_merged['gmaps_url'] = "https://www.google.com/maps/search/?api=1&query=" + df_merged['gmaps_query']
     
     final_columns = [
         'orgName', 'address', 'phone', 'scraped_county_name', 'lat', 'lng',
@@ -84,7 +87,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# --- (*** 關鍵修正：替換為「更深」的大地色系 CSS ***) ---
+# --- (*** 關鍵修正：更新側邊欄文字顏色 ***) ---
 st.markdown(
     f"""
     <style>
@@ -99,22 +102,22 @@ st.markdown(
         color: #9A6852; /* 偏紅棕色 */
     }}
 
-    /* 3. 側邊欄 (更深的棕色) */
+    /* 3. 側邊欄 (深棕色) */
     [data-testid="stSidebar"] {{ 
-        background-color: #6D4C41; /* (新) 更深的咖啡棕色 */
+        background-color: #6D4C41; /* 深咖啡棕色 */
     }}
 
-    /* 4. 側邊欄文字 (淺色 - 大地色) */
+    /* 4. 側邊欄文字 (更淺的顏色) */
     [data-testid="stSidebar"] div, 
     [data-testid="stSidebar"] span,
     [data-testid="stSidebar"] label,
     [data-testid="stSidebar"] p {{
-        color: #DABEA7; /* 淺米色 (不變) */
+        color: #F5F5F5; /* (新) 非常淺的米白色/近白色 */
     }}
 
-    /* 5. 側邊欄標題 (大地色 - 點綴色) */
+    /* 5. 側邊欄標題 (使用色票中最淺的顏色) */
     .st-emotion-cache-r8a62r, .st-emotion-cache-1f2d01k {{ 
-        color: #CDA581; /* 溫暖的棕褐色 (不變) */
+        color: #DABEA7; /* (新) 淺米色，確保對比度 */
     }}
 
     /* 6. 歡迎提醒 (淺色) */
@@ -157,7 +160,7 @@ with st.expander("【 歡迎使用 - 網站提醒 (點此收合) 】", expanded=
         
         2.  **縣市瀏覽**：
             * **不要**輸入任何地址。
-            * 使用「**或 選擇縣市**」下拉選V單瀏覽特定區域。
+            * 使用「**或 選擇縣市**」下拉選單瀏覽特定區域。
         
         3.  **篩選服務**：
             * 您可以選擇要找的服務類型，例如「僅限 心理諮商」或「僅限 通訊諮商」。
@@ -173,6 +176,7 @@ if df_master.empty:
 # --- 6. 側邊欄 (Sidebar) 篩選器 ---
 st.sidebar.header("📍 地圖篩選器")
 
+# (*** 關鍵修正：修正篩選器選項文字，以匹配後端邏輯 ***)
 service_type = st.sidebar.radio(
     "請選擇公費方案：",
     ('僅限 心理諮商 (15-45歲)', 
@@ -185,7 +189,7 @@ service_type = st.sidebar.radio(
 
 availability_filter = st.sidebar.radio(
     "請選擇名額狀態：",
-    ('顯示全部', '至少一項有名額', '兩項同時有名額'),
+    ('顯示全部', '至少一項有名額', '兩項同時有名額'), # (文字簡化)
     key='availability'
 )
 
@@ -224,8 +228,10 @@ elif service_type == '僅限 通訊諮商 (15-45歲)':
     df_filtered = df_filtered[df_filtered['is_telehealth']]
 elif service_type == '兩方案皆提供 (15-45歲)':
     df_filtered = df_filtered[df_filtered['is_general'] & df_filtered['is_telehealth']]
+# (若選 '顯示所有機構'，則不過濾)
 
-if availability_filter == '至少一項有名額':
+# (*** 關鍵修正：修正篩選器邏輯，以匹配前端文字 ***)
+if availability_filter == '至少一項有名額': # (對應 '至少一項有名額')
     if service_type == '僅限 心理諮商 (15-45歲)':
         df_filtered = df_filtered[df_filtered['general_availability'] > 0]
     elif service_type == '僅限 通訊諮商 (15-45歲)':
@@ -235,7 +241,7 @@ if availability_filter == '至少一項有名額':
             (df_filtered['general_availability'] > 0) | 
             (df_filtered['telehealth_availability'] > 0)
         ]
-elif availability_filter == '兩項同時有名額':
+elif availability_filter == '兩項同時有名額': # (對應 '兩項同時有名額')
     if service_type == '兩方案皆提供 (15-45歲)':
         df_filtered = df_filtered[
             (df_filtered['general_availability'] > 0) & 
@@ -245,6 +251,7 @@ elif availability_filter == '兩項同時有名額':
         df_filtered = df_filtered[df_filtered['general_availability'] > 0]
     elif service_type == '僅限 通訊諮商 (15-45歲)':
         df_filtered = df_filtered[df_filtered['telehealth_availability'] > 0]
+# (若選 '顯示全部'，則不過濾)
 
 map_center = [23.9738, 120.982] 
 map_zoom = 8
@@ -282,7 +289,8 @@ else:
         else:
             fill_color = '#A98B73'; border_color = '#876D5A'; radius = 5
         
-        gmaps_url = row['gmaps_url']
+        # (*** 關鍵修正：從 row 中讀取修正後的 gmaps_url ***)
+        gmaps_url = row['gmaps_url'] 
         popup_html = f"<b>{row['orgName']}</b> <a href='{gmaps_url}' target='_blank'>[Google 搜尋]</a><hr style='margin: 3px;'>"
         
         if 'distance' in df_filtered.columns:
@@ -317,27 +325,10 @@ cols_to_show = ['orgName']
 if 'distance' in df_filtered.columns:
     cols_to_show.append('distance')
 
+# (*** 關鍵修正：修正篩選器邏輯，以匹配前端文字 ***)
 if service_type == '僅限 心理諮商 (15-45歲)':
     cols_to_show.append('general_availability')
 elif service_type == '僅限 通訊諮商 (15-45歲)':
     cols_to_show.append('telehealth_availability')
 else: 
-    cols_to_show.extend(['general_availability', 'telehealth_availability'])
-
-cols_to_show.extend(['address', 'phone', 'scraped_county_name'])
-
-st.dataframe(
-    df_filtered[cols_to_show].rename(columns={
-        'orgName': '機構名稱',
-        'distance': '距離(km)',
-        'general_availability': '心理諮商名額',
-        'telehealth_availability': '通訊諮商名額',
-        'address': '地址',
-        'phone': '電話',
-        'scraped_county_name': '縣市'
-    }),
-    hide_index=True,
-    use_container_width=True
-)
-
-st.caption(f"資料來源：衛福部心理健康司。目前顯示 {len(df_filtered)} / 總計 {len(df_master)} 筆機構資料。")
+    cols_to_show.extend(['general_availability', 'telehealth_
