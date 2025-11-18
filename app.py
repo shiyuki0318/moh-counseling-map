@@ -52,11 +52,12 @@ def load_and_merge_data():
 
     df_merged = df_merged.dropna(subset=['lat', 'lng', 'scraped_county_name', 'orgName'])
     
-    # (保留) 已修正的 Google 連結
+    # --- (*** 關鍵修正：使用標準 Google Maps 搜尋連結 ***) ---
     df_merged['gmaps_query'] = (df_merged['orgName'] + ' ' + df_merged['address']).apply(
         lambda x: urllib.parse.quote_plus(str(x))
     )
-    df_merged['gmaps_url'] = "http://googleusercontent.com/maps/google.com/3" + df_merged['gmaps_query']
+    # 這是一個絕對標準的 Google Maps 搜尋網址格式
+    df_merged['gmaps_url'] = "https://www.google.com/maps/search/?api=1&query=" + df_merged['gmaps_query']
     
     final_columns = [
         'orgName', 'address', 'phone', 'scraped_county_name', 'lat', 'lng',
@@ -85,7 +86,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# (保留) 已修正的大地色系 + 更淺的側邊欄文字
+# (保留) 您的大地色系樣式
 st.markdown(
     f"""
     <style>
@@ -131,12 +132,11 @@ st.markdown(
 st.title("🗺️ 台灣公費心理諮商 即時地圖搜尋系統")
 st.markdown("「15-45歲青壯世代心理健康支持方案」，「心理諮商」及「通訊諮商」兩項公費資源整理。")
 
-# (保留) 衛福部提醒
+# 衛福部提醒
 st.warning("【 提醒 】未來四周名額為預估，詳細資訊請聯繫合作機構實際狀況為準。")
 
-# (保留) 歡迎提醒 (使用 st.expander)
-# (*** 關鍵修正：還原說明文字 ***)
-with st.expander("【 歡迎使用 - 網站提醒 (點此收合) 】", expanded=True):
+# 歡迎提醒 (使用 st.expander)
+with st.expander("【 歡迎使用 - 網站提醒 】 (點此收合)", expanded=True):
     st.markdown(
         """
         歡迎使用本地圖查詢系統！
@@ -150,7 +150,7 @@ with st.expander("【 歡迎使用 - 網站提醒 (點此收合) 】", expanded=
         
         2.  **縣市瀏覽**：
             * **不要**輸入任何地址。
-            * 使用「**或 選擇縣市**」下拉選項瀏覽特定區域。
+            * 使用「**選擇縣市**」下拉選項瀏覽特定區域。
         
         3.  **篩選服務**：
             * 您可以選擇要找的服務類型，例如「心理諮商」或「通訊諮商」。
@@ -166,7 +166,7 @@ if df_master.empty:
 # --- 6. 側邊欄 (Sidebar) 篩選器 ---
 st.sidebar.header("📍 地圖篩選器")
 
-# (*** 關鍵修正：還原篩選器選項文字 ***)
+# (保留) 您的用字
 service_type = st.sidebar.radio(
     "請選擇公費方案：",
     ('心理諮商', 
@@ -192,7 +192,7 @@ address_mode_active = bool(user_address)
 
 county_list = ["全台灣"] + sorted(df_master['scraped_county_name'].unique().tolist())
 selected_county = st.sidebar.selectbox(
-    "或 選擇縣市 (瀏覽全台)：",
+    "選擇縣市 (瀏覽全台)：",
     county_list,
     key='county',
     disabled=address_mode_active, 
@@ -212,7 +212,6 @@ st.sidebar.info("本站資料為手動更新，將盡力保持最新。")
 # --- 7. 核心篩選邏輯 ---
 df_filtered = df_master.copy()
 
-# (*** 關鍵修正：還原篩選器邏輯 ***)
 if service_type == '心理諮商':
     df_filtered = df_filtered[df_filtered['is_general']]
 elif service_type == '通訊諮商':
@@ -271,7 +270,7 @@ else:
     for idx, row in df_filtered.iterrows():
         has_any_availability = (row['general_availability'] > 0) or (row['telehealth_availability'] > 0)
         
-        # (保留) 已加大的地圖標記 (Marker)
+        # (保留) 加大的標記
         if has_any_availability:
             fill_color = '#CDA581'; border_color = '#9D7553'; radius = 12; fill_opacity = 0.8
         else:
@@ -315,7 +314,6 @@ cols_to_show = ['orgName']
 if 'distance' in df_filtered.columns:
     cols_to_show.append('distance')
 
-# (*** 關鍵修正：還原表格顯示邏輯 ***)
 if service_type == '心理諮商':
     cols_to_show.append('general_availability')
 elif service_type == '通訊諮商':
