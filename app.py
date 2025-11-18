@@ -137,8 +137,8 @@ st.sidebar.header("📍 地圖篩選器")
 
 service_type = st.sidebar.radio(
     "請選擇公費方案：",
-    ('僅限 心理諮商 (15-45歲)', 
-     '僅限 通訊諮商 (15-45歲)', 
+    ('心理諮商 (15-45歲)', 
+     '通訊諮商 (15-45歲)', 
      '兩方案皆提供 (15-45歲)', 
      '顯示所有機構'),
     index=0, 
@@ -147,7 +147,7 @@ service_type = st.sidebar.radio(
 
 availability_filter = st.sidebar.radio(
     "請選擇名額狀態：",
-    ('顯示全部', '至少一項有名額 (OR)', '兩項同時有名額 (AND)'),
+    ('顯示全部', '至少一項有名額', '兩項同時有名額'),
     key='availability'
 )
 
@@ -160,7 +160,7 @@ address_mode_active = bool(user_address)
 
 county_list = ["全台灣"] + sorted(df_master['scraped_county_name'].unique().tolist())
 selected_county = st.sidebar.selectbox(
-    "或 選擇縣市 (瀏覽全台)：",
+    "選擇縣市 (瀏覽全台)：",
     county_list,
     key='county',
     disabled=address_mode_active, 
@@ -301,3 +301,4 @@ st.dataframe(
 )
 
 st.caption(f"資料來源：衛福部心理健康司。目前顯示 {len(df_filtered)} / 總計 {len(df_master)} 筆機構資料。")
+
