@@ -56,7 +56,7 @@ def load_and_merge_data():
     df_merged['gmaps_query'] = (df_merged['orgName'] + ' ' + df_merged['address']).apply(
         lambda x: urllib.parse.quote_plus(str(x))
     )
-    df_merged['gmaps_url'] = "https://www.google.com/maps/search/?api=1&query=" + df_merged['gmaps_query']
+    df_merged['gmaps_url'] = "http://googleusercontent.com/maps/google.com/3" + df_merged['gmaps_query']
     
     final_columns = [
         'orgName', 'address', 'phone', 'scraped_county_name', 'lat', 'lng',
@@ -85,7 +85,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# --- (*** 關鍵修正：統一提示框顏色 ***) ---
+# (保留) 已修正的大地色系 + 更淺的側邊欄文字
 st.markdown(
     f"""
     <style>
@@ -114,21 +114,19 @@ st.markdown(
         background-color: #F9FAFB; 
         border: 1px solid #DABEA7;
     }}
-    
-    /* 7. 提示框 (大地色系) - (新) 統一顏色 */
+    /* 7. 提示框 (大地色系) */
     [data-testid="stNotification"][kind="success"] {{ 
-        background-color: #CDA581; /* (新) 統一為棕褐色背景 */
-        color: #6D4C41; /* 深棕色文字 */
+        background-color: #DABEA7; 
+        color: #6D4C41; 
     }}
     [data-testid="stNotification"][kind="warning"] {{ 
-        background-color: #CDA581; /* 棕褐色背景 */
-        color: #6D4C41; /* 深棕色文字 */
+        background-color: #CDA581; 
+        color: #6D4C41; 
     }}
     </style>
     """,
     unsafe_allow_html=True
 )
-# --- (*** 修正結束 ***) ---
 
 st.title("🗺️ 台灣公費心理諮商 即時地圖搜尋系統")
 st.markdown("「15-45歲青壯世代心理健康支持方案」，「心理諮商」及「通訊諮商」兩項公費資源整理。")
@@ -137,6 +135,7 @@ st.markdown("「15-45歲青壯世代心理健康支持方案」，「心理諮�
 st.warning("【 提醒 】未來四周名額為預估，詳細資訊請聯繫合作機構實際狀況為準。")
 
 # (保留) 歡迎提醒 (使用 st.expander)
+# (*** 關鍵修正：還原說明文字 ***)
 with st.expander("【 歡迎使用 - 網站提醒 (點此收合) 】", expanded=True):
     st.markdown(
         """
@@ -167,7 +166,7 @@ if df_master.empty:
 # --- 6. 側邊欄 (Sidebar) 篩選器 ---
 st.sidebar.header("📍 地圖篩選器")
 
-# (保留) 已還原的篩選器選項文字
+# (*** 關鍵修正：還原篩選器選項文字 ***)
 service_type = st.sidebar.radio(
     "請選擇公費方案：",
     ('心理諮商', 
@@ -213,7 +212,7 @@ st.sidebar.info("本站資料為手動更新，將盡力保持最新。")
 # --- 7. 核心篩選邏輯 ---
 df_filtered = df_master.copy()
 
-# (保留) 已還原的篩選器邏輯
+# (*** 關鍵修正：還原篩選器邏輯 ***)
 if service_type == '心理諮商':
     df_filtered = df_filtered[df_filtered['is_general']]
 elif service_type == '通訊諮商':
@@ -267,7 +266,6 @@ folium.plugins.LocateControl(auto_start=False).add_to(m)
 if df_filtered.empty:
     st.warning("在地圖範圍內找不到符合條件的診所。請調整篩選器。")
 else:
-    # 這裡的 st.success() 會自動套用您上面修改的 CSS 樣式
     st.success(f"在地圖範圍內找到 {len(df_filtered)} 間符合條件的診所：")
     
     for idx, row in df_filtered.iterrows():
@@ -308,7 +306,7 @@ else:
             icon=folium.Icon(color="red", icon="user")
         ).add_to(m)
         
-    st.folium(m, width="100%", height=500, returned_objects=[])
+    st_folium(m, width="100%", height=500, returned_objects=[])
 
 # --- 9. 顯示資料表格 ---
 st.subheader("📍 機構詳細列表")
@@ -317,7 +315,7 @@ cols_to_show = ['orgName']
 if 'distance' in df_filtered.columns:
     cols_to_show.append('distance')
 
-# (保留) 已還原的表格顯示邏Z輯
+# (*** 關鍵修正：還原表格顯示邏輯 ***)
 if service_type == '心理諮商':
     cols_to_show.append('general_availability')
 elif service_type == '通訊諮商':
