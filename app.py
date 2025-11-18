@@ -99,7 +99,9 @@ st.markdown(
 
 # --- (*** 關鍵修正 ***) ---
 # --- (新功能) 歡迎彈窗 (Modal) - 正確版本 ---
+# 檢查 session_state 中是否沒有 'welcome_shown' 標記
 if 'welcome_shown' not in st.session_state:
+    # 使用 st.dialog 創建一個彈窗
     with st.dialog("【 歡迎使用 - 網站提醒 】"):
         st.markdown(
             """
@@ -122,16 +124,19 @@ if 'welcome_shown' not in st.session_state:
             點擊下方按鈕開始使用。
             """
         )
+        # 顯示一個按鈕
         if st.button("我了解了，開始使用"):
-            st.session_state.welcome_shown = True # 設置標記
+            st.session_state.welcome_shown = True # 設置標記，代表使用者看過了
             st.rerun() # 重新整理頁面以關閉彈窗並載入主程式
     
     # (新) 關鍵：在彈窗顯示時，停止執行下面的主程式
+    # 這樣 st.title() 就不會被執行到，避免 NameError
     st.stop() 
 
 # --- (*** 關鍵修正結束 ***) ---
 # --- 以下是您原本的程式碼，完全不需要縮排 ---
 
+# 只有在 st.session_state.welcome_shown = True 之後，程式才會執行到這裡
 st.title("🗺️ 台灣公費心理諮商 即時地圖搜尋系統")
 st.markdown("「15-45歲青壯世代心理健康支持方案」，「心理諮商」及「通訊諮商」兩項公費資源整理。")
 
@@ -287,7 +292,7 @@ if 'distance' in df_filtered.columns:
 
 if service_type == '僅限 心理諮商 (15-45歲)':
     cols_to_show.append('general_availability')
-elif service_type == '僅限 通訊諮S (15-45歲)':
+elif service_type == '僅限 通訊諮商 (15-45歲)':
     cols_to_show.append('telehealth_availability')
 else: 
     cols_to_show.extend(['general_availability', 'telehealth_availability'])
