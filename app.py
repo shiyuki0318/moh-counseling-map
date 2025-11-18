@@ -84,14 +84,14 @@ st.set_page_config(
     layout="wide"
 )
 
-# --- (*** 關鍵修正：替換為新的「大地色系」 CSS ***) ---
+# --- (*** 關鍵修正：替換為「更深」的大地色系 CSS ***) ---
 st.markdown(
     f"""
     <style>
     /* 1. 主體背景 (白色) */
     body, [data-testid="stAppViewContainer"] {{
         background-color: #FFFFFF; 
-        color: #333333; /* 標準深色文字 */
+        color: #333333; 
     }}
 
     /* 2. 主標題 (大地色系 - 點綴色) */
@@ -99,9 +99,9 @@ st.markdown(
         color: #9A6852; /* 偏紅棕色 */
     }}
 
-    /* 3. 側邊欄 (深色 - 大地色) */
+    /* 3. 側邊欄 (更深的棕色) */
     [data-testid="stSidebar"] {{ 
-        background-color: #876D5A; /* 最深的棕色 */
+        background-color: #6D4C41; /* (新) 更深的咖啡棕色 */
     }}
 
     /* 4. 側邊欄文字 (淺色 - 大地色) */
@@ -109,28 +109,28 @@ st.markdown(
     [data-testid="stSidebar"] span,
     [data-testid="stSidebar"] label,
     [data-testid="stSidebar"] p {{
-        color: #DABEA7; /* 淺米色 */
+        color: #DABEA7; /* 淺米色 (不變) */
     }}
 
     /* 5. 側邊欄標題 (大地色 - 點綴色) */
     .st-emotion-cache-r8a62r, .st-emotion-cache-1f2d01k {{ 
-        color: #CDA581; /* 溫暖的棕褐色 */
+        color: #CDA581; /* 溫暖的棕褐色 (不變) */
     }}
 
     /* 6. 歡迎提醒 (淺色) */
     [data-testid="stExpander"] {{
-        background-color: #F9FAFB; /* 幾乎是白色，保持乾淨 */
+        background-color: #F9FAFB; 
         border: 1px solid #DABEA7;
     }}
 
     /* 7. 提示框 (大地色系) */
     [data-testid="stNotification"][kind="success"] {{ 
-        background-color: #DABEA7; /* 淺米色背景 */
-        color: #876D5A; /* 深棕色文字 */
+        background-color: #DABEA7; 
+        color: #6D4C41; 
     }}
     [data-testid="stNotification"][kind="warning"] {{ 
-        background-color: #CDA581; /* 棕褐色背景 */
-        color: #876D5A; /* 深棕色文字 */
+        background-color: #CDA581; 
+        color: #6D4C41; 
     }}
     </style>
     """,
@@ -157,7 +157,7 @@ with st.expander("【 歡迎使用 - 網站提醒 (點此收合) 】", expanded=
         
         2.  **縣市瀏覽**：
             * **不要**輸入任何地址。
-            * 使用「**或 選擇縣市**」下拉選單瀏覽特定區域。
+            * 使用「**或 選擇縣市**」下拉選V單瀏覽特定區域。
         
         3.  **篩選服務**：
             * 您可以選擇要找的服務類型，例如「僅限 心理諮商」或「僅限 通訊諮商」。
@@ -173,7 +173,6 @@ if df_master.empty:
 # --- 6. 側邊欄 (Sidebar) 篩選器 ---
 st.sidebar.header("📍 地圖篩選器")
 
-# (*** 關鍵修正：修正篩選器選項文字，以匹配後端邏輯 ***)
 service_type = st.sidebar.radio(
     "請選擇公費方案：",
     ('僅限 心理諮商 (15-45歲)', 
@@ -186,7 +185,7 @@ service_type = st.sidebar.radio(
 
 availability_filter = st.sidebar.radio(
     "請選擇名額狀態：",
-    ('顯示全部', '至少一項有名額', '兩項同時有名額'), # (文字簡化)
+    ('顯示全部', '至少一項有名額', '兩項同時有名額'),
     key='availability'
 )
 
@@ -199,7 +198,7 @@ address_mode_active = bool(user_address)
 
 county_list = ["全台灣"] + sorted(df_master['scraped_county_name'].unique().tolist())
 selected_county = st.sidebar.selectbox(
-    "或 選擇縣市 (瀏覽全台)：", # (文字簡化)
+    "或 選擇縣市 (瀏覽全台)：",
     county_list,
     key='county',
     disabled=address_mode_active, 
@@ -225,10 +224,8 @@ elif service_type == '僅限 通訊諮商 (15-45歲)':
     df_filtered = df_filtered[df_filtered['is_telehealth']]
 elif service_type == '兩方案皆提供 (15-45歲)':
     df_filtered = df_filtered[df_filtered['is_general'] & df_filtered['is_telehealth']]
-# (若選 '顯示所有機構'，則不過濾)
 
-# (*** 關鍵修正：修正篩選器邏輯，以匹配前端文字 ***)
-if availability_filter == '至少一項有名額': # (對應 '至少一項有名額 (OR)')
+if availability_filter == '至少一項有名額':
     if service_type == '僅限 心理諮商 (15-45歲)':
         df_filtered = df_filtered[df_filtered['general_availability'] > 0]
     elif service_type == '僅限 通訊諮商 (15-45歲)':
@@ -238,7 +235,7 @@ if availability_filter == '至少一項有名額': # (對應 '至少一項有名
             (df_filtered['general_availability'] > 0) | 
             (df_filtered['telehealth_availability'] > 0)
         ]
-elif availability_filter == '兩項同時有名額': # (對應 '兩項同時有名額 (AND)')
+elif availability_filter == '兩項同時有名額':
     if service_type == '兩方案皆提供 (15-45歲)':
         df_filtered = df_filtered[
             (df_filtered['general_availability'] > 0) & 
@@ -279,12 +276,10 @@ else:
     for idx, row in df_filtered.iterrows():
         has_any_availability = (row['general_availability'] > 0) or (row['telehealth_availability'] > 0)
         
-        # (*** 關鍵修正：替換為新的「大地色系」地圖標記 ***)
+        # (保留) 「大地色系」地圖標記
         if has_any_availability:
-            # (有名額) 使用溫暖的棕褐色
             fill_color = '#CDA581'; border_color = '#9D7553'; radius = 8
         else:
-            # (無名額) 使用柔和的淺棕色
             fill_color = '#A98B73'; border_color = '#876D5A'; radius = 5
         
         gmaps_url = row['gmaps_url']
@@ -322,7 +317,6 @@ cols_to_show = ['orgName']
 if 'distance' in df_filtered.columns:
     cols_to_show.append('distance')
 
-# (*** 關鍵修正：修正篩選器邏輯，以匹配前端文字 ***)
 if service_type == '僅限 心理諮商 (15-45歲)':
     cols_to_show.append('general_availability')
 elif service_type == '僅限 通訊諮商 (15-45歲)':
