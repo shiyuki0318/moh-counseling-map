@@ -84,59 +84,58 @@ st.set_page_config(
     layout="wide"
 )
 
-# --- (*** 關鍵修正：替換為新的 CSS 色系 ***) ---
+# --- (*** 關鍵修正：替換為新的「大地色系」 CSS ***) ---
 st.markdown(
-    """
+    f"""
     <style>
-    /* 1. 主體背景 (淺色) */
-    body, [data-testid="stAppViewContainer"] {
-        background-color: #FFFFFF; /* 白色背景 */
-        color: #111827; /* 深色文字 */
-    }
+    /* 1. 主體背景 (白色) */
+    body, [data-testid="stAppViewContainer"] {{
+        background-color: #FFFFFF; 
+        color: #333333; /* 標準深色文字 */
+    }}
 
-    /* 2. 主標題 (青色點綴) */
-    .st-emotion-cache-10trblm { 
-        color: #06B6D4; /* 青色 (Teal) */
-    }
+    /* 2. 主標題 (大地色系 - 點綴色) */
+    .st-emotion-cache-10trblm {{ 
+        color: #9A6852; /* 偏紅棕色 */
+    }}
 
-    /* 3. 側邊欄 (深色) */
-    [data-testid="stSidebar"] { 
-        background-color: #1F2937; /* 深藍灰色 */
-    }
+    /* 3. 側邊欄 (深色 - 大地色) */
+    [data-testid="stSidebar"] {{ 
+        background-color: #876D5A; /* 最深的棕色 */
+    }}
 
-    /* 4. 側邊欄文字 (淺色) */
+    /* 4. 側邊欄文字 (淺色 - 大地色) */
     [data-testid="stSidebar"] div, 
     [data-testid="stSidebar"] span,
     [data-testid="stSidebar"] label,
-    [data-testid="stSidebar"] p {
-        color: #E5E7EB; /* 淺灰色文字 */
-    }
+    [data-testid="stSidebar"] p {{
+        color: #DABEA7; /* 淺米色 */
+    }}
 
-    /* 5. 側邊欄標題 (青色點綴) */
-    .st-emotion-cache-r8a62r, .st-emotion-cache-1f2d01k { 
-        color: #06B6D4; /* 青色 (Teal) */
-    }
+    /* 5. 側邊欄標題 (大地色 - 點綴色) */
+    .st-emotion-cache-r8a62r, .st-emotion-cache-1f2d01k {{ 
+        color: #CDA581; /* 溫暖的棕褐色 */
+    }}
 
     /* 6. 歡迎提醒 (淺色) */
-    [data-testid="stExpander"] {
-        background-color: #F9FAFB; /* 非常淺的灰色 */
-        border: 1px solid #D1D5DB;
-    }
+    [data-testid="stExpander"] {{
+        background-color: #F9FAFB; /* 幾乎是白色，保持乾淨 */
+        border: 1px solid #DABEA7;
+    }}
 
-    /* 7. 提示框 (淺色) */
-    [data-testid="stNotification"][kind="success"] { 
-        background-color: #D1FAE5; /* 淺綠色 */
-        color: #065F46; /* 深綠色文字 */
-    }
-    [data-testid="stNotification"][kind="warning"] { 
-        background-color: #FEF3C7; /* 淺黃色 */
-        color: #92400E; /* 深黃色文字 */
-    }
+    /* 7. 提示框 (大地色系) */
+    [data-testid="stNotification"][kind="success"] {{ 
+        background-color: #DABEA7; /* 淺米色背景 */
+        color: #876D5A; /* 深棕色文字 */
+    }}
+    [data-testid="stNotification"][kind="warning"] {{ 
+        background-color: #CDA581; /* 棕褐色背景 */
+        color: #876D5A; /* 深棕色文字 */
+    }}
     </style>
     """,
     unsafe_allow_html=True
 )
-
 # --- (*** 修正結束 ***) ---
 
 
@@ -174,6 +173,7 @@ if df_master.empty:
 # --- 6. 側邊欄 (Sidebar) 篩選器 ---
 st.sidebar.header("📍 地圖篩選器")
 
+# (*** 關鍵修正：修正篩選器選項文字，以匹配後端邏輯 ***)
 service_type = st.sidebar.radio(
     "請選擇公費方案：",
     ('僅限 心理諮商 (15-45歲)', 
@@ -186,7 +186,7 @@ service_type = st.sidebar.radio(
 
 availability_filter = st.sidebar.radio(
     "請選擇名額狀態：",
-    ('顯示全部', '至少一項有名額 (OR)', '兩項同時有名額 (AND)'),
+    ('顯示全部', '至少一項有名額', '兩項同時有名額'), # (文字簡化)
     key='availability'
 )
 
@@ -199,7 +199,7 @@ address_mode_active = bool(user_address)
 
 county_list = ["全台灣"] + sorted(df_master['scraped_county_name'].unique().tolist())
 selected_county = st.sidebar.selectbox(
-    "或 選擇縣市 (瀏覽全台)：",
+    "或 選擇縣市 (瀏覽全台)：", # (文字簡化)
     county_list,
     key='county',
     disabled=address_mode_active, 
@@ -225,8 +225,10 @@ elif service_type == '僅限 通訊諮商 (15-45歲)':
     df_filtered = df_filtered[df_filtered['is_telehealth']]
 elif service_type == '兩方案皆提供 (15-45歲)':
     df_filtered = df_filtered[df_filtered['is_general'] & df_filtered['is_telehealth']]
+# (若選 '顯示所有機構'，則不過濾)
 
-if availability_filter == '至少一項有名額 (OR)':
+# (*** 關鍵修正：修正篩選器邏輯，以匹配前端文字 ***)
+if availability_filter == '至少一項有名額': # (對應 '至少一項有名額 (OR)')
     if service_type == '僅限 心理諮商 (15-45歲)':
         df_filtered = df_filtered[df_filtered['general_availability'] > 0]
     elif service_type == '僅限 通訊諮商 (15-45歲)':
@@ -236,7 +238,7 @@ if availability_filter == '至少一項有名額 (OR)':
             (df_filtered['general_availability'] > 0) | 
             (df_filtered['telehealth_availability'] > 0)
         ]
-elif availability_filter == '兩項同時有名額 (AND)':
+elif availability_filter == '兩項同時有名額': # (對應 '兩項同時有名額 (AND)')
     if service_type == '兩方案皆提供 (15-45歲)':
         df_filtered = df_filtered[
             (df_filtered['general_availability'] > 0) & 
@@ -277,13 +279,13 @@ else:
     for idx, row in df_filtered.iterrows():
         has_any_availability = (row['general_availability'] > 0) or (row['telehealth_availability'] > 0)
         
-        # (新) 根據新色系調整地圖標記 (Marker) 顏色
+        # (*** 關鍵修正：替換為新的「大地色系」地圖標記 ***)
         if has_any_availability:
-            # 使用新的青色 (Teal)
-            fill_color = '#06B6D4'; border_color = '#0891B2'; radius = 8
+            # (有名額) 使用溫暖的棕褐色
+            fill_color = '#CDA581'; border_color = '#9D7553'; radius = 8
         else:
-            # 使用深灰色
-            fill_color = '#6B7280'; border_color = '#4B5563'; radius = 5
+            # (無名額) 使用柔和的淺棕色
+            fill_color = '#A98B73'; border_color = '#876D5A'; radius = 5
         
         gmaps_url = row['gmaps_url']
         popup_html = f"<b>{row['orgName']}</b> <a href='{gmaps_url}' target='_blank'>[Google 搜尋]</a><hr style='margin: 3px;'>"
@@ -320,6 +322,7 @@ cols_to_show = ['orgName']
 if 'distance' in df_filtered.columns:
     cols_to_show.append('distance')
 
+# (*** 關鍵修正：修正篩選器邏輯，以匹配前端文字 ***)
 if service_type == '僅限 心理諮商 (15-45歲)':
     cols_to_show.append('general_availability')
 elif service_type == '僅限 通訊諮商 (15-45歲)':
