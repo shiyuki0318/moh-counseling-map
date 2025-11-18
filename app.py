@@ -331,4 +331,22 @@ if service_type == '僅限 心理諮商 (15-45歲)':
 elif service_type == '僅限 通訊諮商 (15-45歲)':
     cols_to_show.append('telehealth_availability')
 else: 
-    cols_to_show.extend(['general_availability', 'telehealth_
+    cols_to_show.extend(['general_availability', 'telehealth_availability'])
+
+cols_to_show.extend(['address', 'phone', 'scraped_county_name'])
+
+st.dataframe(
+    df_filtered[cols_to_show].rename(columns={
+        'orgName': '機構名稱',
+        'distance': '距離(km)',
+        'general_availability': '心理諮商名額',
+        'telehealth_availability': '通訊諮商名額',
+        'address': '地址',
+        'phone': '電話',
+        'scraped_county_name': '縣市'
+    }),
+    hide_index=True,
+    use_container_width=True
+)
+
+st.caption(f"資料來源：衛福部心理健康司。目前顯示 {len(df_filtered)} / 總計 {len(df_master)} 筆機構資料。")
