@@ -90,4 +90,220 @@ st.markdown(
     <style>
     .st-emotion-cache-10trblm { color: #2E8B57; }
     .st-emotion-cache-r8a62r, .st-emotion-cache-1f2d01k { color: #2E8B57; }
-    [data-testid="stSidebar"] { background-color: #
+    [data-testid="stSidebar"] { background-color: #F0F8F0; }
+    [data-testid="stNotification"] { background-color: #DDFFDD; }
+    </style>
+    """,
+    unsafe_allow_html=True
+)
+
+# --- (新功能) 歡迎彈窗 (Modal) ---
+if 'welcome_shown' not in st.session_state:
+    with st.dialog("【 歡迎使用 - 網站提醒 】"):
+        st.markdown(
+            """
+            歡迎使用本地圖查詢系統！
+            
+            **如何使用：**
+            
+            1.  **地址查詢 (推薦)**：
+                * 在左側側邊欄的「**輸入您的地址**」中輸入完整地址。
+                * 地圖將自動縮放至您的位置，並顯示最近的機構。
+                * 「縣市」下拉選單將被**禁用**。
+            
+            2.  **縣市瀏覽**：
+                * **不要**輸入任何地址。
+                * 使用「**或 選擇縣市**」下拉選單瀏覽特定區域。
+            
+            3.  **篩選服務**：
+                * 您可以選擇要找的服務類型，例如「僅限 心理諮商」或「僅限 通訊諮商」。
+            
+            點擊下方按鈕開始使用。
+            """
+        )
+        if st.button("我了解了，開始使用"):
+            st.session_state.welcome_shown = True # 設置標記
+            st.rerun() # 重新整理頁面以關閉彈窗並載入主程式
+
+# --- (*** 關鍵修正 ***) ---
+# --- 以下所有程式碼，都必須在 else: 裡面 (往右縮排) ---
+else:
+    # --- 5. 載入主程式 ---
+    
+    st.title("🗺️ 台灣公費心理諮商 即時地圖搜尋系統")
+    st.markdown("「15-45歲青壯世代心理健康支持方案」，「心理諮商」及「通訊諮商」兩項公費資源整理。")
+
+    df_master = load_and_merge_data()
+
+    if df_master.empty:
+        st.stop() 
+
+    # --- 6. 側邊欄 (Sidebar) 篩選器 ---
+    st.sidebar.header("📍 地圖篩選器")
+
+    service_type = st.sidebar.radio(
+        "請選擇公費方案：",
+        ('僅限 心理諮商 (15-45歲)', 
+         '僅限 通訊諮商 (15-45歲)', 
+         '兩方案皆提供 (15-45歲)', 
+         '顯示所有機構'),
+        index=0, 
+        key='service_type'
+    )
+
+    availability_filter = st.sidebar.radio(
+        "請選擇名額狀態：",
+        ('顯示全部', '至少一項有名額 (OR)', '兩項同時有名額 (AND)'),
+        key='availability'
+    )
+
+    user_address = st.sidebar.text_input(
+        "輸入您的地址 (查詢最近距離)：", 
+        key='user_address',
+        placeholder="例如：臺北市中正區重慶南路一段122號"
+    )
+    address_mode_active = bool(user_address) 
+
+    county_list = ["全台灣"] + sorted(df_master['scraped_county_name'].unique().tolist())
+    selected_county = st.sidebar.selectbox(
+        "或 選擇縣市 (瀏覽全台)：",
+        county_list,
+        key='county',
+        disabled=address_mode_active, 
+        help="若您已輸入地址，此選項將被禁用。"
+    )
+
+    selected_distance = st.sidebar.slider(
+        "距離範圍 (公里)：",
+        min_value=1, max_value=10, value=10, step=1,
+        disabled=not address_mode_active, 
+        help="請先輸入您的地址，才能使用此篩選器。"
+    )
+    
+    st.sidebar.header("資料來源")
+    st.sidebar.info("本站資料為手動更新，將盡力保持最新。")
+
+    # --- 7. 核心篩選邏輯 ---
+    df_filtered = df_master.copy()
+
+    if service_type == '僅限 心理諮商 (15-45歲)':
+        df_filtered = df_filtered[df_filtered['is_general']]
+    elif service_type == '僅限 通訊諮商 (15-45歲)':
+        df_filtered = df_filtered[df_filtered['is_telehealth']]
+    elif service_type == '兩方案皆提供 (15-45歲)':
+        df_filtered = df_filtered[df_filtered['is_general'] & df_filtered['is_telehealth']]
+
+    if availability_filter == '至少一項有名額 (OR)':
+        if service_type == '僅限 心理諮商 (15-45歲)':
+            df_filtered = df_filtered[df_filtered['general_availability'] > 0]
+        elif service_type == '僅限 通訊諮商 (15-45歲)':
+            df_filtered = df_filtered[df_filtered['telehealth_availability'] > 0]
+        else: 
+            df_filtered = df_filtered[
+                (df_filtered['general_availability'] > 0) | 
+                (df_filtered['telehealth_availability'] > 0)
+            ]
+    elif availability_filter == '兩項同時有名額 (AND)':
+        if service_type == '兩方案皆提供 (15-45歲)':
+            df_filtered = df_filtered[
+                (df_filtered['general_availability'] > 0) & 
+                (df_filtered['telehealth_availability'] > 0)
+            ]
+        elif service_type == '僅限 心理諮商 (15-45歲)':
+            df_filtered = df_filtered[df_filtered['general_availability'] > 0]
+        elif service_type == '僅限 通訊諮商 (15-45歲)':
+            df_filtered = df_filtered[df_filtered['telehealth_availability'] > 0]
+
+    map_center = [23.9738, 120.982] 
+    map_zoom = 8
+    user_location = geocode_user_address(user_address)
+
+    if user_location:
+        map_center = user_location
+        map_zoom = 12
+        df_filtered['distance'] = df_filtered.apply(
+            lambda row: geopy.distance.great_circle(user_location, (row['lat'], row['lng'])).km,
+            axis=1
+        )
+        df_filtered = df_filtered[df_filtered['distance'] <= selected_distance]
+        df_filtered = df_filtered.sort_values(by="distance")
+    else:
+        if selected_county != "全台灣":
+            df_filtered = df_filtered[df_filtered['scraped_county_name'] == selected_county]
+
+    # --- 8. 繪製地圖 ---
+    m = folium.Map(location=map_center, zoom_start=map_zoom, tiles="CartoDB positron")
+    marker_cluster = MarkerCluster().add_to(m)
+    folium.plugins.LocateControl(auto_start=False).add_to(m) 
+
+    if df_filtered.empty:
+        st.warning("在地圖範圍內找不到符合條件的診所。請調整篩選器。")
+    else:
+        st.success(f"在地圖範圍內找到 {len(df_filtered)} 間符合條件的診所：")
+        
+        for idx, row in df_filtered.iterrows():
+            has_any_availability = (row['general_availability'] > 0) or (row['telehealth_availability'] > 0)
+            if has_any_availability:
+                fill_color = '#3CB371'; border_color = '#2E8B57'; radius = 8
+            else:
+                fill_color = '#556B2F'; border_color = '#556B2F'; radius = 5
+            
+            gmaps_url = row['gmaps_url']
+            popup_html = f"<b>{row['orgName']}</b> <a href='{gmaps_url}' target='_blank'>[Google 搜尋]</a><hr style='margin: 3px;'>"
+            
+            if 'distance' in df_filtered.columns:
+                 popup_html += f"<b>距離:</b> {row['distance']:.2f} 公里<br>"
+            
+            if row['is_general']:
+                popup_html += f"<b>心理諮商名額:</b> <b>{int(row['general_availability'])}</b><br>"
+            if row['is_telehealth']:
+                popup_html += f"<b>通訊諮商名額:</b> <b>{int(row['telehealth_availability'])}</b><br>"
+                
+            popup_html += f"<b>地址:</b> {row['address']}<br><b>電話:</b> {row['phone']}"
+            
+            folium.CircleMarker(
+                location=[row['lat'], row['lng']],
+                radius=radius,
+                popup=folium.Popup(popup_html, max_width=300),
+                color=border_color, fill=True, fill_color=fill_color, fill_opacity=0.7
+            ).add_to(marker_cluster) 
+
+        if user_location:
+            folium.Marker(
+                location=user_location, popup="您的位置", 
+                icon=folium.Icon(color="red", icon="user")
+            ).add_to(m)
+            
+        st_folium(m, width="100%", height=500, returned_objects=[])
+
+    # --- 9. 顯示資料表格 ---
+    st.subheader("📍 機構詳細列表")
+
+    cols_to_show = ['orgName']
+    if 'distance' in df_filtered.columns:
+        cols_to_show.append('distance')
+
+    if service_type == '僅限 心理諮商 (15-45歲)':
+        cols_to_show.append('general_availability')
+    elif service_type == '僅限 通訊諮商 (15-45歲)':
+        cols_to_show.append('telehealth_availability')
+    else: 
+        cols_to_show.extend(['general_availability', 'telehealth_availability'])
+
+    cols_to_show.extend(['address', 'phone', 'scraped_county_name'])
+
+    st.dataframe(
+        df_filtered[cols_to_show].rename(columns={
+            'orgName': '機構名稱',
+            'distance': '距離(km)',
+            'general_availability': '心理諮商名額',
+            'telehealth_availability': '通訊諮商名額',
+            'address': '地址',
+            'phone': '電話',
+            'scraped_county_name': '縣市'
+        }),
+        hide_index=True,
+        use_container_width=True
+    )
+
+    st.caption(f"資料來源：衛福部心理健康司。目前顯示 {len(df_filtered)} / 總計 {len(df_master)} 筆機構資料。")
