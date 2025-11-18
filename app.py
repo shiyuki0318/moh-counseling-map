@@ -89,7 +89,7 @@ st.markdown(
     """
     <style>
     .st-emotion-cache-10trblm { color: #DABEA7; }
-    .st-emotion-cache-r8a62r, .st-emotion-cache-1f2d01k { color: #2E8B57; }
+    .st-emotion-cache-r8a62r, .st-emotion-cache-1f2d01k { color: #DABEA7; }
     [data-testid="stSidebar"] { background-color: #F0F8F0; }
     [data-testid="stNotification"] { background-color: #DDFFDD; }
     </style>
@@ -301,6 +301,7 @@ st.dataframe(
 )
 
 st.caption(f"資料來源：衛福部心理健康司。目前顯示 {len(df_filtered)} / 總計 {len(df_master)} 筆機構資料。")
+
 
 
 
