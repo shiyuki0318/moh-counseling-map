@@ -52,12 +52,10 @@ def load_and_merge_data():
 
     df_merged = df_merged.dropna(subset=['lat', 'lng', 'scraped_county_name', 'orgName'])
     
-    # --- (*** 關鍵修正：修正 Google 連結 ***) ---
-    # 建立一個包含「機構名稱」和「地址」的查詢字串
+    # (保留) 已修正的 Google 連結
     df_merged['gmaps_query'] = (df_merged['orgName'] + ' ' + df_merged['address']).apply(
         lambda x: urllib.parse.quote_plus(str(x))
     )
-    # 使用標準、穩定的 Google Maps 搜尋網址
     df_merged['gmaps_url'] = "https://www.google.com/maps/search/?api=1&query=" + df_merged['gmaps_query']
     
     final_columns = [
@@ -87,7 +85,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# --- (*** 關鍵修正：更新側邊欄文字顏色 ***) ---
+# (保留) 已修正的大地色系 + 更淺的側邊欄文字
 st.markdown(
     f"""
     <style>
@@ -96,17 +94,10 @@ st.markdown(
         background-color: #FFFFFF; 
         color: #333333; 
     }}
-
-    /* 2. 主標題 (大地色系 - 點綴色) */
-    .st-emotion-cache-10trblm {{ 
-        color: #9A6852; /* 偏紅棕色 */
-    }}
-
+    /* 2. 主標題 (大地色系) */
+    .st-emotion-cache-10trblm {{ color: #9A6852; }}
     /* 3. 側邊欄 (深棕色) */
-    [data-testid="stSidebar"] {{ 
-        background-color: #6D4C41; /* 深咖啡棕色 */
-    }}
-
+    [data-testid="stSidebar"] {{ background-color: #6D4C41; }}
     /* 4. 側邊欄文字 (更淺的顏色) */
     [data-testid="stSidebar"] div, 
     [data-testid="stSidebar"] span,
@@ -114,22 +105,19 @@ st.markdown(
     [data-testid="stSidebar"] p {{
         color: #F5F5F5; /* (新) 非常淺的米白色/近白色 */
     }}
-
-    /* 5. 側邊欄標題 (使用色票中最淺的顏色) */
+    /* 5. 側邊欄標題 (淺米色) */
     .st-emotion-cache-r8a62r, .st-emotion-cache-1f2d01k {{ 
-        color: #DABEA7; /* (新) 淺米色，確保對比度 */
+        color: #DABEA7; 
     }}
-
     /* 6. 歡迎提醒 (淺色) */
     [data-testid="stExpander"] {{
         background-color: #F9FAFB; 
         border: 1px solid #DABEA7;
     }}
-
-    /* 7. 提示框 (大地色系) */
+    /* 7. 提示框 (大地色系) - 這就是您要修改的地方 */
     [data-testid="stNotification"][kind="success"] {{ 
-        background-color: #DABEA7; 
-        color: #6D4C41; 
+        background-color: #DABEA7; /* 淺米色背景 */
+        color: #6D4C41; /* 深棕色文字 */
     }}
     [data-testid="stNotification"][kind="warning"] {{ 
         background-color: #CDA581; 
@@ -139,13 +127,11 @@ st.markdown(
     """,
     unsafe_allow_html=True
 )
-# --- (*** 修正結束 ***) ---
-
 
 st.title("🗺️ 台灣公費心理諮商 即時地圖搜尋系統")
 st.markdown("「15-45歲青壯世代心理健康支持方案」，「心理諮商」及「通訊諮商」兩項公費資源整理。")
 
-# --- (保留) 歡迎提醒 (使用 st.expander) ---
+# (保留) 歡迎提醒 (使用 st.expander)
 with st.expander("【 歡迎使用 - 網站提醒 (點此收合) 】", expanded=True):
     st.markdown(
         """
@@ -156,11 +142,11 @@ with st.expander("【 歡迎使用 - 網站提醒 (點此收合) 】", expanded=
         1.  **地址查詢 (推薦)**：
             * 在左側側邊欄的「**輸入您的地址**」中輸入完整地址。
             * 地圖將自動縮放至您的位置，並顯示最近的機構。
-            * 「縣市」下拉選單將被**禁用**。
+            * 「縣市」下拉選項將被**禁用**。
         
         2.  **縣市瀏覽**：
             * **不要**輸入任何地址。
-            * 使用「**或 選擇縣市**」下拉選單瀏覽特定區域。
+            * 使用「**或 選擇縣市**」下拉選項瀏覽特定區域。
         
         3.  **篩選服務**：
             * 您可以選擇要找的服務類型，例如「僅限 心理諮商」或「僅限 通訊諮商」。
@@ -176,7 +162,7 @@ if df_master.empty:
 # --- 6. 側邊欄 (Sidebar) 篩選器 ---
 st.sidebar.header("📍 地圖篩選器")
 
-# (*** 關鍵修正：修正篩選器選項文字，以匹配後端邏輯 ***)
+# (保留) 已修正的篩選器選項文字
 service_type = st.sidebar.radio(
     "請選擇公費方案：",
     ('僅限 心理諮商 (15-45歲)', 
@@ -189,7 +175,7 @@ service_type = st.sidebar.radio(
 
 availability_filter = st.sidebar.radio(
     "請選擇名額狀態：",
-    ('顯示全部', '至少一項有名額', '兩項同時有名額'), # (文字簡化)
+    ('顯示全部', '至少一項有名額', '兩項同時有名額'),
     key='availability'
 )
 
@@ -222,16 +208,15 @@ st.sidebar.info("本站資料為手動更新，將盡力保持最新。")
 # --- 7. 核心篩選邏輯 ---
 df_filtered = df_master.copy()
 
+# (保留) 已修正的篩選器邏輯
 if service_type == '僅限 心理諮商 (15-45歲)':
     df_filtered = df_filtered[df_filtered['is_general']]
 elif service_type == '僅限 通訊諮商 (15-45歲)':
     df_filtered = df_filtered[df_filtered['is_telehealth']]
 elif service_type == '兩方案皆提供 (15-45歲)':
     df_filtered = df_filtered[df_filtered['is_general'] & df_filtered['is_telehealth']]
-# (若選 '顯示所有機構'，則不過濾)
 
-# (*** 關鍵修正：修正篩選器邏輯，以匹配前端文字 ***)
-if availability_filter == '至少一項有名額': # (對應 '至少一項有名額')
+if availability_filter == '至少一項有名額':
     if service_type == '僅限 心理諮商 (15-45歲)':
         df_filtered = df_filtered[df_filtered['general_availability'] > 0]
     elif service_type == '僅限 通訊諮商 (15-45歲)':
@@ -241,7 +226,7 @@ if availability_filter == '至少一項有名額': # (對應 '至少一項有名
             (df_filtered['general_availability'] > 0) | 
             (df_filtered['telehealth_availability'] > 0)
         ]
-elif availability_filter == '兩項同時有名額': # (對應 '兩項同時有名額')
+elif availability_filter == '兩項同時有名額':
     if service_type == '兩方案皆提供 (15-45歲)':
         df_filtered = df_filtered[
             (df_filtered['general_availability'] > 0) & 
@@ -251,7 +236,6 @@ elif availability_filter == '兩項同時有名額': # (對應 '兩項同時有�
         df_filtered = df_filtered[df_filtered['general_availability'] > 0]
     elif service_type == '僅限 通訊諮商 (15-45歲)':
         df_filtered = df_filtered[df_filtered['telehealth_availability'] > 0]
-# (若選 '顯示全部'，則不過濾)
 
 map_center = [23.9738, 120.982] 
 map_zoom = 8
@@ -283,14 +267,15 @@ else:
     for idx, row in df_filtered.iterrows():
         has_any_availability = (row['general_availability'] > 0) or (row['telehealth_availability'] > 0)
         
-        # (保留) 「大地色系」地圖標記
+        # --- (*** 關鍵修正：加大地圖標記 (Marker) ***) ---
         if has_any_availability:
-            fill_color = '#CDA581'; border_color = '#9D7553'; radius = 8
+            # (新) 有名額：標記放大、更不透明
+            fill_color = '#CDA581'; border_color = '#9D7553'; radius = 12; fill_opacity = 0.8
         else:
-            fill_color = '#A98B73'; border_color = '#876D5A'; radius = 5
+            # (新) 無名額：標記較小、更透明
+            fill_color = '#A98B73'; border_color = '#876D5A'; radius = 7; fill_opacity = 0.6
         
-        # (*** 關鍵修正：從 row 中讀取修正後的 gmaps_url ***)
-        gmaps_url = row['gmaps_url'] 
+        gmaps_url = row['gmaps_url']
         popup_html = f"<b>{row['orgName']}</b> <a href='{gmaps_url}' target='_blank'>[Google 搜尋]</a><hr style='margin: 3px;'>"
         
         if 'distance' in df_filtered.columns:
@@ -305,10 +290,14 @@ else:
         
         folium.CircleMarker(
             location=[row['lat'], row['lng']],
-            radius=radius,
+            radius=radius, # (新) 使用上面定義的變數
             popup=folium.Popup(popup_html, max_width=300),
-            color=border_color, fill=True, fill_color=fill_color, fill_opacity=0.7
+            color=border_color, 
+            fill=True, 
+            fill_color=fill_color, 
+            fill_opacity=fill_opacity # (新) 使用上面定義的變數
         ).add_to(marker_cluster) 
+        # --- (*** 修正結束 ***) ---
 
     if user_location:
         folium.Marker(
@@ -325,7 +314,7 @@ cols_to_show = ['orgName']
 if 'distance' in df_filtered.columns:
     cols_to_show.append('distance')
 
-# (*** 關鍵修正：修正篩選器邏輯，以匹配前端文字 ***)
+# (保留) 已修正的表格顯示邏輯
 if service_type == '僅限 心理諮商 (15-45歲)':
     cols_to_show.append('general_availability')
 elif service_type == '僅限 通訊諮商 (15-45歲)':
