@@ -9,8 +9,8 @@ import time
 import urllib.parse 
 
 # --- 1. 定義兩個 CSV 檔案路徑 ---
-COUNSELING_CSV = "MOHW_counseling_data_FINAL.csv"  # 「心理諮商」資料
-TELEHEALTH_CSV = "MOHW_telehealth_data_FINAL.csv"  # 「通訊諮商」資料
+COUNSELING_CSV = "MOHW_counseling_data_FINAL.csv"
+TELEHEALTH_CSV = "MOHW_telehealth_data_FINAL.csv"
 
 # --- 2. 載入並合併資料 ---
 @st.cache_data 
@@ -84,27 +84,67 @@ st.set_page_config(
     layout="wide"
 )
 
-# (保留) 注入 CSS 更改「網站配色」
+# --- (*** 關鍵修正：替換為新的 CSS 色系 ***) ---
 st.markdown(
     """
     <style>
-    .st-emotion-cache-10trblm { color: #DABEA7; }
-    .st-emotion-cache-r8a62r, .st-emotion-cache-1f2d01k { color: #DABEA7; }
-    [data-testid="stSidebar"] { background-color: #F0F8F0; }
-    [data-testid="stNotification"] { background-color: #DDFFDD; }
+    /* 1. 主體背景 (淺色) */
+    body, [data-testid="stAppViewContainer"] {
+        background-color: #FFFFFF; /* 白色背景 */
+        color: #111827; /* 深色文字 */
+    }
+
+    /* 2. 主標題 (青色點綴) */
+    .st-emotion-cache-10trblm { 
+        color: #06B6D4; /* 青色 (Teal) */
+    }
+
+    /* 3. 側邊欄 (深色) */
+    [data-testid="stSidebar"] { 
+        background-color: #1F2937; /* 深藍灰色 */
+    }
+
+    /* 4. 側邊欄文字 (淺色) */
+    [data-testid="stSidebar"] div, 
+    [data-testid="stSidebar"] span,
+    [data-testid="stSidebar"] label,
+    [data-testid="stSidebar"] p {
+        color: #E5E7EB; /* 淺灰色文字 */
+    }
+
+    /* 5. 側邊欄標題 (青色點綴) */
+    .st-emotion-cache-r8a62r, .st-emotion-cache-1f2d01k { 
+        color: #06B6D4; /* 青色 (Teal) */
+    }
+
+    /* 6. 歡迎提醒 (淺色) */
+    [data-testid="stExpander"] {
+        background-color: #F9FAFB; /* 非常淺的灰色 */
+        border: 1px solid #D1D5DB;
+    }
+
+    /* 7. 提示框 (淺色) */
+    [data-testid="stNotification"][kind="success"] { 
+        background-color: #D1FAE5; /* 淺綠色 */
+        color: #065F46; /* 深綠色文字 */
+    }
+    [data-testid="stNotification"][kind="warning"] { 
+        background-color: #FEF3C7; /* 淺黃色 */
+        color: #92400E; /* 深黃色文字 */
+    }
     </style>
     """,
     unsafe_allow_html=True
 )
 
-# --- (*** 關鍵修正 ***) ---
-# --- 以下是您原本的程式碼，我們只在中間插入一個 st.expander ---
+# --- (*** 修正結束 ***) ---
+
 
 st.title("🗺️ 台灣公費心理諮商 即時地圖搜尋系統")
 st.markdown("「15-45歲青壯世代心理健康支持方案」，「心理諮商」及「通訊諮商」兩項公費資源整理。")
 
-# --- (新功能) 歡迎提醒 (使用 st.expander，預設展開) ---
-with st.expander("【 歡迎使用 - 網站提醒 】(點此收合) ", expanded=True):
+# --- (保留) 歡迎提醒 (使用 st.expander) ---
+with st.expander("【 歡迎使用 - 網站提醒 (點此收合) 】", expanded=True):
     st.markdown(
         """
         歡迎使用本地圖查詢系統！
@@ -118,13 +158,12 @@ with st.expander("【 歡迎使用 - 網站提醒 】(點此收合) ", expanded=
         
         2.  **縣市瀏覽**：
             * **不要**輸入任何地址。
-            * 使用「**選擇縣市**」下拉選單瀏覽特定區域。
+            * 使用「**或 選擇縣市**」下拉選單瀏覽特定區域。
         
         3.  **篩選服務**：
-            * 您可以選擇要找的服務類型，例如「心理諮商」或「通訊諮商」。
+            * 您可以選擇要找的服務類型，例如「僅限 心理諮商」或「僅限 通訊諮商」。
         """
     )
-# --- (新功能結束) ---
 
 
 df_master = load_and_merge_data()
@@ -137,9 +176,9 @@ st.sidebar.header("📍 地圖篩選器")
 
 service_type = st.sidebar.radio(
     "請選擇公費方案：",
-    ('心理諮商', 
-     '通訊諮商', 
-     '兩方案皆提供', 
+    ('僅限 心理諮商 (15-45歲)', 
+     '僅限 通訊諮商 (15-45歲)', 
+     '兩方案皆提供 (15-45歲)', 
      '顯示所有機構'),
     index=0, 
     key='service_type'
@@ -147,7 +186,7 @@ service_type = st.sidebar.radio(
 
 availability_filter = st.sidebar.radio(
     "請選擇名額狀態：",
-    ('顯示全部', '至少一項有名額', '兩項同時有名額'),
+    ('顯示全部', '至少一項有名額 (OR)', '兩項同時有名額 (AND)'),
     key='availability'
 )
 
@@ -160,7 +199,7 @@ address_mode_active = bool(user_address)
 
 county_list = ["全台灣"] + sorted(df_master['scraped_county_name'].unique().tolist())
 selected_county = st.sidebar.selectbox(
-    "選擇縣市 (瀏覽全台)：",
+    "或 選擇縣市 (瀏覽全台)：",
     county_list,
     key='county',
     disabled=address_mode_active, 
@@ -237,10 +276,14 @@ else:
     
     for idx, row in df_filtered.iterrows():
         has_any_availability = (row['general_availability'] > 0) or (row['telehealth_availability'] > 0)
+        
+        # (新) 根據新色系調整地圖標記 (Marker) 顏色
         if has_any_availability:
-            fill_color = '#3CB371'; border_color = '#2E8B57'; radius = 8
+            # 使用新的青色 (Teal)
+            fill_color = '#06B6D4'; border_color = '#0891B2'; radius = 8
         else:
-            fill_color = '#556B2F'; border_color = '#556B2F'; radius = 5
+            # 使用深灰色
+            fill_color = '#6B7280'; border_color = '#4B5563'; radius = 5
         
         gmaps_url = row['gmaps_url']
         popup_html = f"<b>{row['orgName']}</b> <a href='{gmaps_url}' target='_blank'>[Google 搜尋]</a><hr style='margin: 3px;'>"
@@ -301,10 +344,3 @@ st.dataframe(
 )
 
 st.caption(f"資料來源：衛福部心理健康司。目前顯示 {len(df_filtered)} / 總計 {len(df_master)} 筆機構資料。")
-
-
-
-
-
-
-
