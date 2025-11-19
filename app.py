@@ -207,7 +207,7 @@ selected_distance = st.sidebar.slider(
 )
 
 st.sidebar.header("資料來源")
-st.sidebar.info("本站資料為手動更新，將盡力保持最新。")
+st.sidebar.info("本站資料為手動更新，將盡力保持最新資訊。")
 
 # --- 7. 核心篩選邏輯 ---
 df_filtered = df_master.copy()
@@ -338,3 +338,4 @@ st.dataframe(
 )
 
 st.caption(f"資料來源：衛福部心理健康司。目前顯示 {len(df_filtered)} / 總計 {len(df_master)} 筆機構資料。")
+
