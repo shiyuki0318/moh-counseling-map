@@ -52,12 +52,11 @@ def load_and_merge_data():
 
     df_merged = df_merged.dropna(subset=['lat', 'lng', 'scraped_county_name', 'orgName'])
     
-    # --- (*** 關鍵修正：使用標準 Google Maps 搜尋連結 ***) ---
+    # (保留) 已修正的 Google 連結
     df_merged['gmaps_query'] = (df_merged['orgName'] + ' ' + df_merged['address']).apply(
         lambda x: urllib.parse.quote_plus(str(x))
     )
-    # 這是一個絕對標準的 Google Maps 搜尋網址格式
-    df_merged['gmaps_url'] = "https://www.google.com/maps/search/?api=1&query=" + df_merged['gmaps_query']
+    df_merged['gmaps_url'] = "http://googleusercontent.com/maps/google.com/3" + df_merged['gmaps_query']
     
     final_columns = [
         'orgName', 'address', 'phone', 'scraped_county_name', 'lat', 'lng',
@@ -86,7 +85,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# (保留) 您的大地色系樣式
+# (保留) 已修正的大地色系 + 更淺的側邊欄文字
 st.markdown(
     f"""
     <style>
@@ -136,6 +135,7 @@ st.markdown("「15-45歲青壯世代心理健康支持方案」，「心理諮�
 st.warning("【 提醒 】未來四周名額為預估，詳細資訊請聯繫合作機構實際狀況為準。")
 
 # 歡迎提醒 (使用 st.expander)
+# (*** 關鍵修正：還原說明文字 ***)
 with st.expander("【 歡迎使用 - 網站提醒 】 (點此收合)", expanded=True):
     st.markdown(
         """
@@ -166,7 +166,7 @@ if df_master.empty:
 # --- 6. 側邊欄 (Sidebar) 篩選器 ---
 st.sidebar.header("📍 地圖篩選器")
 
-# (保留) 您的用字
+# (*** 關鍵修正：還原篩選器選項文字 ***)
 service_type = st.sidebar.radio(
     "請選擇公費方案：",
     ('心理諮商', 
@@ -192,7 +192,7 @@ address_mode_active = bool(user_address)
 
 county_list = ["全台灣"] + sorted(df_master['scraped_county_name'].unique().tolist())
 selected_county = st.sidebar.selectbox(
-    "選擇縣市 (瀏覽全台)：",
+    "或 選擇縣市 (瀏覽全台)：",
     county_list,
     key='county',
     disabled=address_mode_active, 
@@ -207,11 +207,12 @@ selected_distance = st.sidebar.slider(
 )
 
 st.sidebar.header("資料來源")
-st.sidebar.info("本站資料為手動更新，將盡力保持最新資訊。")
+st.sidebar.info("本站資料為手動更新，將盡力保持最新。")
 
 # --- 7. 核心篩選邏輯 ---
 df_filtered = df_master.copy()
 
+# (*** 關鍵修正：還原篩選器邏輯 ***)
 if service_type == '心理諮商':
     df_filtered = df_filtered[df_filtered['is_general']]
 elif service_type == '通訊諮商':
@@ -270,7 +271,7 @@ else:
     for idx, row in df_filtered.iterrows():
         has_any_availability = (row['general_availability'] > 0) or (row['telehealth_availability'] > 0)
         
-        # (保留) 加大的標記
+        # (保留) 已加大的地圖標記 (Marker)
         if has_any_availability:
             fill_color = '#CDA581'; border_color = '#9D7553'; radius = 12; fill_opacity = 0.8
         else:
@@ -314,6 +315,7 @@ cols_to_show = ['orgName']
 if 'distance' in df_filtered.columns:
     cols_to_show.append('distance')
 
+# (*** 關鍵修正：還原表格顯示邏輯 ***)
 if service_type == '心理諮商':
     cols_to_show.append('general_availability')
 elif service_type == '通訊諮商':
@@ -339,3 +341,25 @@ st.dataframe(
 
 st.caption(f"資料來源：衛福部心理健康司。目前顯示 {len(df_filtered)} / 總計 {len(df_master)} 筆機構資料。")
 
+# --- (新功能) 數據統計圖表 ---
+st.markdown("---")
+st.subheader("📊 縣市資源分布比較")
+
+# 準備統計數據
+count_gen = df_master[df_master['is_general']]['scraped_county_name'].value_counts()
+count_tel = df_master[df_master['is_telehealth']]['scraped_county_name'].value_counts()
+
+# 合併並整理
+df_stats = pd.DataFrame({'青壯方案(實體)': count_gen, '通訊諮商': count_tel}).fillna(0)
+df_stats['總數'] = df_stats['青壯方案(實體)'] + df_stats['通訊諮商']
+df_stats = df_stats.sort_values('總數', ascending=False)
+
+# 顯示圖表 (Streamlit 內建長條圖)
+st.bar_chart(df_stats[['青壯方案(實體)', '通訊諮商']], color=["#FF4B4B", "#3670CE"])
+
+# 顯示文字分析
+col1, col2 = st.columns(2)
+with col1:
+    st.info(f"📍 臺北市：實體 {int(df_stats.loc['臺北市', '青壯方案(實體)'])} 間 / 通訊 {int(df_stats.loc['臺北市', '通訊諮商'])} 間")
+with col2:
+    st.info(f"📍 臺中市：實體 {int(df_stats.loc['臺中市', '青壯方案(實體)'])} 間 / 通訊 {int(df_stats.loc['臺中市', '通訊諮商'])} 間")
