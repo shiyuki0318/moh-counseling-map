@@ -120,7 +120,7 @@ st.markdown(
         background-color: #DABEA7; 
         color: #6D4C41; 
     }}
-    /* 讓 info 提示框也變成大地色系，視覺更統一 */
+    /* 讓 info 提示框也變成大地色系 */
     [data-testid="stNotification"][kind="info"] {{ 
         background-color: #EFEBE9; 
         color: #6D4C41; 
@@ -152,7 +152,7 @@ with st.expander("【 歡迎使用 - 網站提醒 】 (點此收合)", expanded=
         * 您可以透過側邊欄的「距離範圍」滑桿來調整搜尋半徑。
         
         **縣市瀏覽：**
-        **2. 不要輸入任何地址。**
+        * **2. 不要輸入任何地址。**
         * 使用「選擇縣市」下拉選項瀏覽特定區域。
         
         **3. 您也可以點擊地圖左上角的「定位按鈕」來查看您目前的所在地（藍色圓點）。**
@@ -185,7 +185,7 @@ if search_mode == '📍 搜尋附近資源 (地址/定位)':
     address_input = st.sidebar.text_input(
         "輸入您的地址：", 
         key='user_address',
-        placeholder="輸入地址或留空以定位..."
+        placeholder="輸入地址或留空使用GPS定位..."
     )
     
     selected_distance = st.sidebar.slider(
@@ -207,8 +207,8 @@ if search_mode == '📍 搜尋附近資源 (地址/定位)':
         if not is_default_center:
              user_location = (st.session_state.map_center_lat, st.session_state.map_center_lng)
              st.sidebar.success(f"已定位：{user_location[0]:.4f}, {user_location[1]:.4f}")
-        else:
-             st.sidebar.info("💡 請輸入地址，或是點擊地圖左上角的 **[定位按鈕]**。")
+        
+        # (*** 已修正：移除了原本這裡的「請輸入地址...」提示框 ***)
 
 else:
     # 情況 2: 縣市瀏覽
@@ -273,20 +273,17 @@ elif availability_filter == '兩項同時有名額':
     elif service_type == '通訊諮商':
         df_filtered = df_filtered[df_filtered['telehealth_availability'] > 0]
 
-# --- 距離篩選 (改進版) ---
+# --- 距離篩選 ---
 filter_message = ""
 if search_mode == '📍 搜尋附近資源 (地址/定位)' and user_location:
-    # 計算距離
     df_filtered['distance'] = df_filtered.apply(
         lambda row: geopy.distance.great_circle(user_location, (row['lat'], row['lng'])).km,
         axis=1
     )
-    # 篩選距離
     df_filtered = df_filtered[df_filtered['distance'] <= selected_distance]
     df_filtered = df_filtered.sort_values(by="distance")
     
     if df_filtered.empty:
-        # (關鍵) 如果找不到，顯示這則訊息，但地圖照樣畫！
         filter_message = f"🔍 在方圓 **{selected_distance} 公里** 內暫無符合條件的機構。"
         st.info(filter_message)
     else:
@@ -300,7 +297,6 @@ elif search_mode == '🏙️ 瀏覽縣市 (區域搜尋)':
             st.success(f"在 {selected_county} 找到 {len(df_filtered)} 間符合條件的機構。")
 
 # --- 8. 繪製地圖 ---
-# (關鍵) 無論是否 filtered.empty，都繪製地圖
 m = folium.Map(
     location=[st.session_state.map_center_lat, st.session_state.map_center_lng], 
     zoom_start=st.session_state.map_zoom, 
@@ -314,7 +310,6 @@ LocateControl(
     strings={"title": "顯示我的位置"}
 ).add_to(m)
 
-# 繪製機構標記 (如果有的話)
 if not df_filtered.empty:
     for idx, row in df_filtered.iterrows():
         has_any_availability = (row['general_availability'] > 0) or (row['telehealth_availability'] > 0)
@@ -347,20 +342,15 @@ if not df_filtered.empty:
             fill_opacity=fill_opacity
         ).add_to(marker_cluster) 
 
-# 繪製使用者紅點 (如果有的話)
 if user_location:
     folium.Marker(
         location=user_location, popup="您的位置 (搜尋中心)", 
         icon=folium.Icon(color="red", icon="home")
     ).add_to(m)
 
-# --- 9. 地圖互動回傳 (關鍵優化) ---
+# --- 9. 地圖互動回傳 ---
 map_output = st_folium(m, width="100%", height=500)
 
-# 邏輯優化：
-# 只有在「📍 搜尋附近資源」模式，且「沒有輸入固定地址」的情況下，
-# 才允許拖曳地圖觸發重新搜尋 (Rerun)。
-# 如果使用者輸入了地址，地址就是固定的，拖曳地圖只是單純看地圖，不會重新搜尋。
 should_rerun_on_move = (search_mode == '📍 搜尋附近資源 (地址/定位)' and not address_input)
 
 if should_rerun_on_move and map_output and map_output['center']:
@@ -408,4 +398,3 @@ st.dataframe(
 )
 
 st.caption(f"資料來源：衛福部心理健康司。目前顯示 {len(df_filtered)} / 總計 {len(df_master)} 筆機構資料。")
-
