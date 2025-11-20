@@ -52,10 +52,11 @@ def load_and_merge_data():
 
     df_merged = df_merged.dropna(subset=['lat', 'lng', 'scraped_county_name', 'orgName'])
     
-    # 使用標準 Google Maps 搜尋網址
+    # --- (*** 關鍵修正：使用標準 Google Maps 搜尋連結 ***) ---
     df_merged['gmaps_query'] = (df_merged['orgName'] + ' ' + df_merged['address']).apply(
         lambda x: urllib.parse.quote_plus(str(x))
     )
+    # 這是一個絕對標準的 Google Maps 搜尋網址格式
     df_merged['gmaps_url'] = "https://www.google.com/maps/search/?api=1&query=" + df_merged['gmaps_query']
     
     final_columns = [
@@ -85,35 +86,38 @@ st.set_page_config(
     layout="wide"
 )
 
-# (保留) 大地色系樣式
+# (保留) 您的大地色系樣式
 st.markdown(
     f"""
     <style>
+    /* 1. 主體背景 (白色) */
     body, [data-testid="stAppViewContainer"] {{
         background-color: #FFFFFF; 
         color: #333333; 
     }}
+    /* 2. 主標題 (大地色系) */
     .st-emotion-cache-10trblm {{ color: #9A6852; }}
+    /* 3. 側邊欄 (深棕色) */
     [data-testid="stSidebar"] {{ background-color: #6D4C41; }}
+    /* 4. 側邊欄文字 (更淺的顏色) */
     [data-testid="stSidebar"] div, 
     [data-testid="stSidebar"] span,
     [data-testid="stSidebar"] label,
     [data-testid="stSidebar"] p {{
         color: #F5F5F5; 
     }}
+    /* 5. 側邊欄標題 (淺米色) */
     .st-emotion-cache-r8a62r, .st-emotion-cache-1f2d01k {{ 
         color: #DABEA7; 
     }}
+    /* 6. 歡迎提醒 (淺色) */
     [data-testid="stExpander"] {{
         background-color: #F9FAFB; 
         border: 1px solid #DABEA7;
     }}
+    /* 7. 提示框 (大地色系) */
     [data-testid="stNotification"][kind="success"] {{ 
         background-color: #DABEA7; 
-        color: #6D4C41; 
-    }}
-    [data-testid="stNotification"][kind="info"] {{ 
-        background-color: #EFEBE9; 
         color: #6D4C41; 
     }}
     [data-testid="stNotification"][kind="warning"] {{ 
@@ -125,97 +129,81 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-st.title(" 🧡台灣公費心理諮商 即時地圖搜尋系統🗺️  ")
-st.markdown("「15-45歲青壯世代心理健康支持方案」，「 🧡心理諮商」及「📞通訊諮商」兩項公費資源整理。")
+st.title("🗺️ 台灣公費心理諮商 即時地圖搜尋系統")
+st.markdown("「15-45歲青壯世代心理健康支持方案」，「心理諮商」及「通訊諮商」兩項公費資源整理。")
 
 # 衛福部提醒
 st.warning("【 提醒 】未來四周名額為預估，詳細資訊請聯繫合作機構實際狀況為準。")
 
-# 歡迎提醒
+# 歡迎提醒 (使用 st.expander)
 with st.expander("【 歡迎使用 - 網站提醒 】 (點此收合)", expanded=True):
     st.markdown(
         """
         歡迎使用本地圖查詢系統！
         
-        **1. 地址查詢 (推薦 - 搜尋附近資源)：**
-        * 在左側側邊欄的「輸入您的地址」中輸入完整地址。
-        * 系統將定位並篩選出距離您 1-10 公里內的機構。
-        * 您可以透過側邊欄的「距離範圍」滑桿來調整搜尋半徑。
+        **如何使用：**
         
-        **2. 縣市瀏覽：**
-        * 不要輸入任何地址，使用「選擇縣市」下拉選項瀏覽特定區域。
+        1.  **地址查詢 (推薦)**：
+            * 在左側側邊欄的「**輸入您的地址**」中輸入完整地址。
+            * 地圖將自動縮放至您的位置，並顯示最近的機構。
+            * 「縣市」下拉選項將被**禁用**。
         
-        **3. 關於定位按鈕：**
-        * 您可以點擊地圖左上角的「定位按鈕」來查看您目前的所在地（藍色圓點）。
-        * **注意：** 為確保地圖穩定，點擊定位按鈕或拖曳地圖**不會**改變搜尋結果，請使用「輸入地址」來進行精確篩選。
+        2.  **縣市瀏覽**：
+            * **不要**輸入任何地址。
+            * 使用「**選擇縣市**」下拉選項瀏覽特定區域。
         
-        **4. 篩選服務：**
-        * 您可以選擇要找的服務類型，例如「心理諮商」或「通訊諮商」。
+        3.  **篩選服務**：
+            * 您可以選擇要找的服務類型，例如「心理諮商」或「通訊諮商」。
         """
     )
 
+
 df_master = load_and_merge_data()
+
 if df_master.empty:
     st.stop() 
 
 # --- 6. 側邊欄 (Sidebar) 篩選器 ---
 st.sidebar.header("📍 地圖篩選器")
 
-# 變數初始化
-user_location = None 
-map_center_lat = 23.9738 
-map_center_lng = 120.982
-map_zoom = 8
-
-# 1. 地址輸入
-user_address = st.sidebar.text_input(
-    "輸入您的地址 (啟動距離篩選)：", 
-    key='user_address',
-    placeholder="請輸入地址以搜尋附近診所..."
-)
-
-# 2. 距離滑桿 (始終顯示，但只在有地址時生效)
-selected_distance = st.sidebar.slider(
-    "距離範圍 (公里)：",
-    min_value=1, max_value=10, value=5, step=1
-)
-
-if user_address:
-    loc = geocode_user_address(user_address)
-    if loc:
-        user_location = loc
-        # 如果有輸入地址，地圖就以此為中心
-        map_center_lat = loc[0]
-        map_center_lng = loc[1]
-        map_zoom = 14
-        st.sidebar.success("✅ 已定位")
-    else:
-        st.sidebar.error("❌ 找不到此地址")
-
-# 3. 縣市選單 (若有輸入地址則禁用)
-county_list = ["全台灣"] + sorted(df_master['scraped_county_name'].unique().tolist())
-selected_county = st.sidebar.selectbox(
-    "或 選擇縣市：",
-    county_list,
-    key='county',
-    disabled=bool(user_location),
-    help="若已輸入地址，此選項將被禁用。"
-)
-
-st.sidebar.markdown("---")
-
-# 4. 服務類型
+# (保留) 您的用字
 service_type = st.sidebar.radio(
     "請選擇公費方案：",
-    ('心理諮商', '通訊諮商', '兩方案皆提供', '顯示所有機構'),
-    index=0, key='service_type'
+    ('心理諮商', 
+     '通訊諮商', 
+     '兩方案皆提供', 
+     '顯示所有機構'),
+    index=0, 
+    key='service_type'
 )
 
-# 5. 名額狀態
 availability_filter = st.sidebar.radio(
     "請選擇名額狀態：",
     ('顯示全部', '至少一項有名額', '兩項同時有名額'),
     key='availability'
+)
+
+user_address = st.sidebar.text_input(
+    "輸入您的地址 (查詢最近距離)：", 
+    key='user_address',
+    placeholder="例如：臺北市中正區重慶南路一段122號"
+)
+address_mode_active = bool(user_address) 
+
+county_list = ["全台灣"] + sorted(df_master['scraped_county_name'].unique().tolist())
+selected_county = st.sidebar.selectbox(
+    "或 選擇縣市 (瀏覽全台)：",
+    county_list,
+    key='county',
+    disabled=address_mode_active, 
+    help="若您已輸入地址，此選項將被禁用。"
+)
+
+selected_distance = st.sidebar.slider(
+    "距離範圍 (公里)：",
+    min_value=1, max_value=10, value=10, step=1,
+    disabled=not address_mode_active, 
+    help="請先輸入您的地址，才能使用此篩選器。"
 )
 
 st.sidebar.header("資料來源")
@@ -224,7 +212,6 @@ st.sidebar.info("本站資料為手動更新，將盡力保持最新。")
 # --- 7. 核心篩選邏輯 ---
 df_filtered = df_master.copy()
 
-# 服務類型
 if service_type == '心理諮商':
     df_filtered = df_filtered[df_filtered['is_general']]
 elif service_type == '通訊諮商':
@@ -232,7 +219,6 @@ elif service_type == '通訊諮商':
 elif service_type == '兩方案皆提供':
     df_filtered = df_filtered[df_filtered['is_general'] & df_filtered['is_telehealth']]
 
-# 名額狀態
 if availability_filter == '至少一項有名額':
     if service_type == '心理諮商':
         df_filtered = df_filtered[df_filtered['general_availability'] > 0]
@@ -254,42 +240,37 @@ elif availability_filter == '兩項同時有名額':
     elif service_type == '通訊諮商':
         df_filtered = df_filtered[df_filtered['telehealth_availability'] > 0]
 
-# --- 距離篩選 vs 縣市篩選 ---
-# (關鍵) 這裡不顯示任何提示框，只做資料篩選
+map_center = [23.9738, 120.982] 
+map_zoom = 8
+user_location = geocode_user_address(user_address)
+
 if user_location:
-    # 計算距離
+    map_center = user_location
+    map_zoom = 12
     df_filtered['distance'] = df_filtered.apply(
         lambda row: geopy.distance.great_circle(user_location, (row['lat'], row['lng'])).km,
         axis=1
     )
-    # 篩選距離
     df_filtered = df_filtered[df_filtered['distance'] <= selected_distance]
     df_filtered = df_filtered.sort_values(by="distance")
-    
-elif selected_county != "全台灣":
-    # 縣市篩選
-    df_filtered = df_filtered[df_filtered['scraped_county_name'] == selected_county]
+else:
+    if selected_county != "全台灣":
+        df_filtered = df_filtered[df_filtered['scraped_county_name'] == selected_county]
 
 # --- 8. 繪製地圖 ---
-m = folium.Map(
-    location=[map_center_lat, map_center_lng], 
-    zoom_start=map_zoom, 
-    tiles="CartoDB positron"
-)
-
+m = folium.Map(location=map_center, zoom_start=map_zoom, tiles="CartoDB positron")
 marker_cluster = MarkerCluster().add_to(m)
+folium.plugins.LocateControl(auto_start=False).add_to(m) 
 
-# 加入定位按鈕 (純前端功能，不影響 Python 篩選)
-LocateControl(
-    auto_start=False,
-    strings={"title": "顯示我的位置"}
-).add_to(m)
-
-# 繪製標記
-if not df_filtered.empty:
+if df_filtered.empty:
+    st.warning("在地圖範圍內找不到符合條件的診所。請調整篩選器。")
+else:
+    st.success(f"在地圖範圍內找到 {len(df_filtered)} 間符合條件的診所：")
+    
     for idx, row in df_filtered.iterrows():
         has_any_availability = (row['general_availability'] > 0) or (row['telehealth_availability'] > 0)
         
+        # (保留) 加大的標記
         if has_any_availability:
             fill_color = '#CDA581'; border_color = '#9D7553'; radius = 12; fill_opacity = 0.8
         else:
@@ -318,17 +299,15 @@ if not df_filtered.empty:
             fill_opacity=fill_opacity
         ).add_to(marker_cluster) 
 
-# 紅色地標 (搜尋中心 - 只有輸入地址才有)
-if user_location:
-    folium.Marker(
-        location=user_location, popup="搜尋中心 (您的地址)", 
-        icon=folium.Icon(color="red", icon="home")
-    ).add_to(m)
+    if user_location:
+        folium.Marker(
+            location=user_location, popup="您的位置", 
+            icon=folium.Icon(color="red", icon="user")
+        ).add_to(m)
+        
+    st_folium(m, width="100%", height=500, returned_objects=[])
 
-# --- 9. 顯示地圖 (不接收回傳值，防止重新整理) ---
-st_folium(m, width="100%", height=500, returned_objects=[])
-
-# --- 10. 表格 ---
+# --- 9. 顯示資料表格 ---
 st.subheader("📍 機構詳細列表")
 
 cols_to_show = ['orgName']
