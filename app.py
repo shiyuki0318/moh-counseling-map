@@ -129,7 +129,7 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-st.title("🗺️ 台灣公費心理諮商 即時地圖搜尋系統")
+st.title(" ❤️台灣公費心理諮商 即時地圖搜尋系統🗺️")
 st.markdown("「15-45歲青壯世代心理健康支持方案」，「心理諮商」及「通訊諮商」兩項公費資源整理。")
 
 # 衛福部提醒
@@ -338,3 +338,4 @@ st.dataframe(
 )
 
 st.caption(f"資料來源：衛福部心理健康司。目前顯示 {len(df_filtered)} / 總計 {len(df_master)} 筆機構資料。")
+
