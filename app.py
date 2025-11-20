@@ -352,3 +352,59 @@ if user_location:
     folium.Marker(
         location=user_location, popup="您的位置 (搜尋中心)", 
         icon=folium.Icon(color="red", icon="home")
+    ).add_to(m)
+
+# --- 9. 地圖互動回傳 (關鍵優化) ---
+map_output = st_folium(m, width="100%", height=500)
+
+# 邏輯優化：
+# 只有在「📍 搜尋附近資源」模式，且「沒有輸入固定地址」的情況下，
+# 才允許拖曳地圖觸發重新搜尋 (Rerun)。
+# 如果使用者輸入了地址，地址就是固定的，拖曳地圖只是單純看地圖，不會重新搜尋。
+should_rerun_on_move = (search_mode == '📍 搜尋附近資源 (地址/定位)' and not address_input)
+
+if should_rerun_on_move and map_output and map_output['center']:
+    new_lat = map_output['center']['lat']
+    new_lng = map_output['center']['lng']
+    new_zoom = map_output['zoom']
+    
+    if (abs(new_lat - st.session_state.map_center_lat) > 0.0001 or 
+        abs(new_lng - st.session_state.map_center_lng) > 0.0001 or
+        new_zoom != st.session_state.map_zoom):
+        
+        st.session_state.map_center_lat = new_lat
+        st.session_state.map_center_lng = new_lng
+        st.session_state.map_zoom = new_zoom
+        st.rerun()
+
+# --- 10. 表格 ---
+st.subheader("📍 機構詳細列表")
+
+cols_to_show = ['orgName']
+if 'distance' in df_filtered.columns:
+    cols_to_show.append('distance')
+
+if service_type == '心理諮商':
+    cols_to_show.append('general_availability')
+elif service_type == '通訊諮商':
+    cols_to_show.append('telehealth_availability')
+else: 
+    cols_to_show.extend(['general_availability', 'telehealth_availability'])
+
+cols_to_show.extend(['address', 'phone', 'scraped_county_name'])
+
+st.dataframe(
+    df_filtered[cols_to_show].rename(columns={
+        'orgName': '機構名稱',
+        'distance': '距離(km)',
+        'general_availability': '心理諮商名額',
+        'telehealth_availability': '通訊諮商名額',
+        'address': '地址',
+        'phone': '電話',
+        'scraped_county_name': '縣市'
+    }),
+    hide_index=True,
+    use_container_width=True
+)
+
+st.caption(f"資料來源：衛福部心理健康司。目前顯示 {len(df_filtered)} / 總計 {len(df_master)} 筆機構資料。")
