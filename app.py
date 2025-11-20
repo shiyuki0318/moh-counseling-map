@@ -87,7 +87,7 @@ st.set_page_config(
 
 # --- Session State 初始化 ---
 if 'map_center_lat' not in st.session_state:
-    st.session_state.map_center_lat = 23.9738 # 預設台灣中心
+    st.session_state.map_center_lat = 23.9738 
 if 'map_center_lng' not in st.session_state:
     st.session_state.map_center_lng = 120.982
 if 'map_zoom' not in st.session_state:
@@ -120,6 +120,11 @@ st.markdown(
         background-color: #DABEA7; 
         color: #6D4C41; 
     }}
+    /* 讓 info 提示框也變成大地色系，視覺更統一 */
+    [data-testid="stNotification"][kind="info"] {{ 
+        background-color: #EFEBE9; 
+        color: #6D4C41; 
+    }}
     [data-testid="stNotification"][kind="warning"] {{ 
         background-color: #CDA581; 
         color: #6D4C41; 
@@ -135,8 +140,7 @@ st.markdown("「15-45歲青壯世代心理健康支持方案」，「 🧡心理
 # 衛福部提醒
 st.warning("【 提醒 】未來四周名額為預估，詳細資訊請聯繫合作機構實際狀況為準。")
 
-# 歡迎提醒 (使用 st.expander)
-# (*** 關鍵修正：已完全依照您提供的文字更新 ***)
+# 歡迎提醒
 with st.expander("【 歡迎使用 - 網站提醒 】 (點此收合)", expanded=True):
     st.markdown(
         """
@@ -166,8 +170,7 @@ if df_master.empty:
 # --- 6. 側邊欄 (Sidebar) 篩選器 ---
 st.sidebar.header("📍 地圖篩選器")
 
-# (*** 新增：模式切換，以區分「縣市瀏覽」和「定位搜尋」 ***)
-# 這符合您的邏輯：要嘛輸入地址/定位(附近資源)，要嘛選縣市(不輸入地址)
+# 模式切換
 search_mode = st.sidebar.radio(
     "請選擇搜尋模式：",
     ('📍 搜尋附近資源 (地址/定位)', '🏙️ 瀏覽縣市 (區域搜尋)'),
@@ -199,21 +202,19 @@ if search_mode == '📍 搜尋附近資源 (地址/定位)':
             st.session_state.map_center_lng = loc[1]
             st.session_state.map_zoom = 14
     else:
-        # 情況 3: 沒輸入地址，使用地圖中心 (定位按鈕邏輯)
-        # 這裡使用 session_state 的中心點作為使用者位置
-        # 為了避免一開始顯示南投，我們檢查是否移動過
+        # 情況 3: 沒輸入地址，使用地圖中心
         is_default_center = (st.session_state.map_center_lat == 23.9738 and st.session_state.map_center_lng == 120.982)
         if not is_default_center:
              user_location = (st.session_state.map_center_lat, st.session_state.map_center_lng)
-             st.sidebar.success(f"已定位地圖中心：{user_location[0]:.4f}, {user_location[1]:.4f}")
+             st.sidebar.success(f"已定位：{user_location[0]:.4f}, {user_location[1]:.4f}")
         else:
-             st.sidebar.info("💡 請輸入地址，或是點擊地圖左上角的 **[定位按鈕]** 來啟動搜尋。")
+             st.sidebar.info("💡 請輸入地址，或是點擊地圖左上角的 **[定位按鈕]**。")
 
 else:
     # 情況 2: 縣市瀏覽
     st.sidebar.info("在此模式下，將顯示所選縣市的所有機構。")
 
-# 縣市清單 (只在瀏覽模式啟用)
+# 縣市清單
 county_list = ["全台灣"] + sorted(df_master['scraped_county_name'].unique().tolist())
 selected_county = st.sidebar.selectbox(
     "選擇縣市：",
@@ -272,24 +273,34 @@ elif availability_filter == '兩項同時有名額':
     elif service_type == '通訊諮商':
         df_filtered = df_filtered[df_filtered['telehealth_availability'] > 0]
 
-# --- 距離篩選 vs 縣市篩選 ---
+# --- 距離篩選 (改進版) ---
+filter_message = ""
 if search_mode == '📍 搜尋附近資源 (地址/定位)' and user_location:
     # 計算距離
     df_filtered['distance'] = df_filtered.apply(
         lambda row: geopy.distance.great_circle(user_location, (row['lat'], row['lng'])).km,
         axis=1
     )
-    # 篩選距離 (關鍵：只顯示範圍內)
+    # 篩選距離
     df_filtered = df_filtered[df_filtered['distance'] <= selected_distance]
     df_filtered = df_filtered.sort_values(by="distance")
     
-    st.info(f"📍 已為您篩選：位於 **{selected_distance} 公里** 內的 **{len(df_filtered)}** 間機構。")
+    if df_filtered.empty:
+        # (關鍵) 如果找不到，顯示這則訊息，但地圖照樣畫！
+        filter_message = f"🔍 在方圓 **{selected_distance} 公里** 內暫無符合條件的機構。"
+        st.info(filter_message)
+    else:
+        filter_message = f"📍 已為您篩選：位於 **{selected_distance} 公里** 內的 **{len(df_filtered)}** 間機構。"
+        st.success(filter_message)
 
 elif search_mode == '🏙️ 瀏覽縣市 (區域搜尋)':
     if selected_county != "全台灣":
         df_filtered = df_filtered[df_filtered['scraped_county_name'] == selected_county]
+        if not df_filtered.empty:
+            st.success(f"在 {selected_county} 找到 {len(df_filtered)} 間符合條件的機構。")
 
 # --- 8. 繪製地圖 ---
+# (關鍵) 無論是否 filtered.empty，都繪製地圖
 m = folium.Map(
     location=[st.session_state.map_center_lat, st.session_state.map_center_lng], 
     zoom_start=st.session_state.map_zoom, 
@@ -298,22 +309,13 @@ m = folium.Map(
 
 marker_cluster = MarkerCluster().add_to(m)
 
-# 加入定位按鈕
 LocateControl(
     auto_start=False,
     strings={"title": "顯示我的位置"}
 ).add_to(m)
 
-# 標記
-if df_filtered.empty:
-    if user_location:
-        st.warning(f"在目前位置方圓 {selected_distance} 公里內找不到符合條件的診所，請嘗試擴大距離範圍。")
-    else:
-        st.warning("在地圖範圍內找不到符合條件的診所。")
-else:
-    if not user_location: # 縣市模式顯示這個
-        st.success(f"在地圖範圍內找到 {len(df_filtered)} 間符合條件的診所：")
-    
+# 繪製機構標記 (如果有的話)
+if not df_filtered.empty:
     for idx, row in df_filtered.iterrows():
         has_any_availability = (row['general_availability'] > 0) or (row['telehealth_availability'] > 0)
         
@@ -345,60 +347,8 @@ else:
             fill_opacity=fill_opacity
         ).add_to(marker_cluster) 
 
-# 如果有使用者位置 (地址或GPS)，顯示紅點
+# 繪製使用者紅點 (如果有的話)
 if user_location:
     folium.Marker(
-        location=user_location, popup="您的位置", 
+        location=user_location, popup="您的位置 (搜尋中心)", 
         icon=folium.Icon(color="red", icon="home")
-    ).add_to(m)
-
-# --- 9. 地圖互動回傳 (實現定位鈕篩選的關鍵) ---
-map_output = st_folium(m, width="100%", height=500)
-
-# 邏輯：如果在「搜尋附近資源」模式且沒輸入地址，則地圖移動視為定位改變
-if search_mode == '📍 搜尋附近資源 (地址/定位)' and not address_input and map_output and map_output['center']:
-    new_lat = map_output['center']['lat']
-    new_lng = map_output['center']['lng']
-    new_zoom = map_output['zoom']
-    
-    # 檢查位移是否足夠大，避免無窮迴圈
-    if (abs(new_lat - st.session_state.map_center_lat) > 0.0001 or 
-        abs(new_lng - st.session_state.map_center_lng) > 0.0001 or
-        new_zoom != st.session_state.map_zoom):
-        
-        st.session_state.map_center_lat = new_lat
-        st.session_state.map_center_lng = new_lng
-        st.session_state.map_zoom = new_zoom
-        st.rerun()
-
-# --- 10. 表格 ---
-st.subheader("📍 機構詳細列表")
-
-cols_to_show = ['orgName']
-if 'distance' in df_filtered.columns:
-    cols_to_show.append('distance')
-
-if service_type == '心理諮商':
-    cols_to_show.append('general_availability')
-elif service_type == '通訊諮商':
-    cols_to_show.append('telehealth_availability')
-else: 
-    cols_to_show.extend(['general_availability', 'telehealth_availability'])
-
-cols_to_show.extend(['address', 'phone', 'scraped_county_name'])
-
-st.dataframe(
-    df_filtered[cols_to_show].rename(columns={
-        'orgName': '機構名稱',
-        'distance': '距離(km)',
-        'general_availability': '心理諮商名額',
-        'telehealth_availability': '通訊諮商名額',
-        'address': '地址',
-        'phone': '電話',
-        'scraped_county_name': '縣市'
-    }),
-    hide_index=True,
-    use_container_width=True
-)
-
-st.caption(f"資料來源：衛福部心理健康司。目前顯示 {len(df_filtered)} / 總計 {len(df_master)} 筆機構資料。")
