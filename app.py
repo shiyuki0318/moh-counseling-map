@@ -85,6 +85,14 @@ st.set_page_config(
     layout="wide"
 )
 
+# --- Session State 初始化 (用於記錄地圖中心點) ---
+if 'map_center_lat' not in st.session_state:
+    st.session_state.map_center_lat = 23.9738
+if 'map_center_lng' not in st.session_state:
+    st.session_state.map_center_lng = 120.982
+if 'map_zoom' not in st.session_state:
+    st.session_state.map_zoom = 8
+
 # (保留) 大地色系樣式
 st.markdown(
     f"""
@@ -128,43 +136,69 @@ st.markdown("「15-45歲青壯世代心理健康支持方案」，「 🧡心理
 st.warning("【 提醒 】未來四周名額為預估，詳細資訊請聯繫合作機構實際狀況為準。")
 
 # 歡迎提醒
-# (*** 關鍵修正：明確解釋定位與篩選的關係 ***)
 with st.expander("【 歡迎使用 - 網站提醒 】 (點此收合)", expanded=True):
     st.markdown(
         """
         歡迎使用本地圖查詢系統！
         
-        **🎯 如何「只顯示」附近的診所？**
+        **🎯 兩種方式搜尋附近診所：**
         
-        1.  **步驟一：輸入地址 (啟動篩選)**
-            * 請在左側側邊欄的「**輸入您的地址**」欄位中，輸入您所在的地址。
-            * **輸入後，系統將自動過濾掉全台灣其他診所，只在地圖上保留您附近的診所。**
-            
-        2.  **步驟二：調整距離**
-            * 使用側邊欄的「**距離範圍**」滑桿 (1-10公里) 來擴大或縮小搜尋範圍。
-            
-        3.  **關於地圖按鈕**
-            * 地圖左上角的「定位圖示」僅供您查看目前位置，**無法**用來篩選診所資料，請務必使用左側地址欄位。
+        1.  **輸入地址搜尋**：在側邊欄輸入您的地址，精準定位。
+        2.  **地圖定位/GPS搜尋**：
+            * 將側邊欄模式切換為「**地圖中心/定位搜尋**」。
+            * 點擊地圖左上角的 **[定位圖示]**。
+            * **地圖移動後，系統會自動搜尋您所在位置方圓 1-10 公里內的診所！**
         """
     )
 
-
 df_master = load_and_merge_data()
-
 if df_master.empty:
     st.stop() 
 
 # --- 6. 側邊欄 (Sidebar) 篩選器 ---
 st.sidebar.header("📍 地圖篩選器")
 
+# (*** 新增：搜尋模式切換 ***)
+search_mode = st.sidebar.radio(
+    "請選擇搜尋方式：",
+    ('輸入地址', '地圖中心/定位搜尋'),
+    index=0,
+    help="選擇「地圖中心/定位搜尋」後，點擊地圖上的定位鈕，即可搜尋您所在位置附近的診所。"
+)
+
+user_location = None # 初始化
+
+if search_mode == '輸入地址':
+    user_address = st.sidebar.text_input(
+        "輸入地址：", 
+        key='user_address',
+        placeholder="例如：臺北市中正區重慶南路一段122號"
+    )
+    if user_address:
+        user_location = geocode_user_address(user_address)
+        if user_location:
+            # 更新地圖中心到地址位置
+            st.session_state.map_center_lat = user_location[0]
+            st.session_state.map_center_lng = user_location[1]
+            st.session_state.map_zoom = 14
+else:
+    st.sidebar.info("💡 請點擊地圖左上角的 **[定位圖示]**，或直接拖曳地圖。系統將搜尋**地圖中心點**附近的診所。")
+    # 在此模式下，使用當前地圖中心作為使用者位置
+    user_location = (st.session_state.map_center_lat, st.session_state.map_center_lng)
+
+# 距離滑桿
+selected_distance = st.sidebar.slider(
+    "距離範圍 (公里)：",
+    min_value=1, max_value=10, value=5, step=1,
+    help="調整搜尋半徑。"
+)
+
+st.sidebar.markdown("---")
+
 service_type = st.sidebar.radio(
     "請選擇公費方案：",
-    ('心理諮商', 
-     '通訊諮商', 
-     '兩方案皆提供', 
-     '顯示所有機構'),
-    index=0, 
-    key='service_type'
+    ('心理諮商', '通訊諮商', '兩方案皆提供', '顯示所有機構'),
+    index=0, key='service_type'
 )
 
 availability_filter = st.sidebar.radio(
@@ -173,28 +207,15 @@ availability_filter = st.sidebar.radio(
     key='availability'
 )
 
-# (*** 關鍵修正：強調輸入地址的功能 ***)
-user_address = st.sidebar.text_input(
-    "輸入您的地址 (啟動距離篩選)：", 
-    key='user_address',
-    placeholder="輸入後，將只顯示附近的診所..."
-)
-address_mode_active = bool(user_address) 
-
 county_list = ["全台灣"] + sorted(df_master['scraped_county_name'].unique().tolist())
+# 只有在沒有定位且沒有輸入地址時，才啟用縣市選單
+is_location_active = (user_location is not None)
 selected_county = st.sidebar.selectbox(
-    "或 選擇縣市 (瀏覽全台)：",
+    "或 選擇縣市：",
     county_list,
     key='county',
-    disabled=address_mode_active, 
-    help="若您已輸入地址，此選項將被禁用。"
-)
-
-selected_distance = st.sidebar.slider(
-    "距離範圍 (公里)：",
-    min_value=1, max_value=10, value=10, step=1,
-    disabled=not address_mode_active, 
-    help="請先輸入您的地址，才能使用此篩選器。"
+    disabled=is_location_active,
+    help="若已使用定位或地址搜尋，此選項將被禁用。"
 )
 
 st.sidebar.header("資料來源")
@@ -203,6 +224,7 @@ st.sidebar.info("本站資料為手動更新，將盡力保持最新。")
 # --- 7. 核心篩選邏輯 ---
 df_filtered = df_master.copy()
 
+# 服務類型篩選
 if service_type == '心理諮商':
     df_filtered = df_filtered[df_filtered['is_general']]
 elif service_type == '通訊諮商':
@@ -210,6 +232,7 @@ elif service_type == '通訊諮商':
 elif service_type == '兩方案皆提供':
     df_filtered = df_filtered[df_filtered['is_general'] & df_filtered['is_telehealth']]
 
+# 名額狀態篩選
 if availability_filter == '至少一項有名額':
     if service_type == '心理諮商':
         df_filtered = df_filtered[df_filtered['general_availability'] > 0]
@@ -231,50 +254,46 @@ elif availability_filter == '兩項同時有名額':
     elif service_type == '通訊諮商':
         df_filtered = df_filtered[df_filtered['telehealth_availability'] > 0]
 
-map_center = [23.9738, 120.982] 
-map_zoom = 8
-user_location = geocode_user_address(user_address)
-
-# (*** 關鍵修正：根據地址篩選，並在介面上給予回饋 ***)
+# --- 距離篩選核心邏輯 ---
 if user_location:
-    map_center = user_location
-    map_zoom = 13 # Zoom 得更近一點
-    
     # 計算距離
     df_filtered['distance'] = df_filtered.apply(
         lambda row: geopy.distance.great_circle(user_location, (row['lat'], row['lng'])).km,
         axis=1
     )
-    
-    # (*** 核心：只保留距離內的診所 ***)
+    # 篩選距離
     df_filtered = df_filtered[df_filtered['distance'] <= selected_distance]
     df_filtered = df_filtered.sort_values(by="distance")
     
-    # 在地圖上方顯示目前篩選狀態
-    st.info(f"📍 已定位：顯示位於您 **{selected_distance} 公里** 內的 **{len(df_filtered)}** 間機構。")
+    st.info(f"📍 已定位搜尋：顯示位於 **{user_location[0]:.4f}, {user_location[1]:.4f}** 周邊 **{selected_distance} 公里** 內的 **{len(df_filtered)}** 間機構。")
     
 else:
-    # 如果沒有輸入地址，才依縣市篩選
+    # 沒定位時，依縣市篩選
     if selected_county != "全台灣":
         df_filtered = df_filtered[df_filtered['scraped_county_name'] == selected_county]
 
 # --- 8. 繪製地圖 ---
-m = folium.Map(location=map_center, zoom_start=map_zoom, tiles="CartoDB positron")
+m = folium.Map(
+    location=[st.session_state.map_center_lat, st.session_state.map_center_lng], 
+    zoom_start=st.session_state.map_zoom, 
+    tiles="CartoDB positron"
+)
+
 marker_cluster = MarkerCluster().add_to(m)
 
-# 加入定位按鈕 (僅供視覺參考)
-folium.plugins.LocateControl(
+# 加入定位按鈕
+LocateControl(
     auto_start=False,
-    strings={"title": "顯示我的位置 (僅供參考，不篩選數據)"}
-).add_to(m) 
+    strings={"title": "點擊定位，搜尋附近診所"}
+).add_to(m)
 
+# 繪製標記
 if df_filtered.empty:
     if user_location:
-        st.warning(f"在您的方圓 {selected_distance} 公里內找不到符合條件的診所，請嘗試擴大距離範圍。")
+        st.warning(f"在目前位置方圓 {selected_distance} 公里內找不到符合條件的診所，請嘗試擴大距離或移動地圖。")
     else:
         st.warning("在地圖範圍內找不到符合條件的診所。請調整篩選器。")
 else:
-    # 只有在非地址模式下才顯示這行，避免資訊重複
     if not user_location:
         st.success(f"在地圖範圍內找到 {len(df_filtered)} 間符合條件的診所：")
     
@@ -309,15 +328,34 @@ else:
             fill_opacity=fill_opacity
         ).add_to(marker_cluster) 
 
-    if user_location:
-        folium.Marker(
-            location=user_location, popup="您的位置", 
-            icon=folium.Icon(color="red", icon="user")
-        ).add_to(m)
-        
-    st_folium(m, width="100%", height=500, returned_objects=[])
+# 如果是地址搜尋模式，顯示紅色標記
+if search_mode == '輸入地址' and user_location:
+    folium.Marker(
+        location=user_location, popup="您的地址", 
+        icon=folium.Icon(color="red", icon="home")
+    ).add_to(m)
 
-# --- 9. 顯示資料表格 ---
+# --- 9. 處理地圖互動回傳 (關鍵步驟) ---
+# 這裡會抓取地圖的中心點，如果地圖被拖曳或點擊定位，這裡會收到新座標
+map_output = st_folium(m, width="100%", height=500)
+
+# 如果在「地圖中心/定位搜尋」模式，且地圖中心改變了，則更新 Session State 並重新執行
+if search_mode == '地圖中心/定位搜尋' and map_output and map_output['center']:
+    new_lat = map_output['center']['lat']
+    new_lng = map_output['center']['lng']
+    new_zoom = map_output['zoom']
+    
+    # 檢查是否位移超過一定程度 (避免微小抖動造成無限刷新)
+    if (abs(new_lat - st.session_state.map_center_lat) > 0.0001 or 
+        abs(new_lng - st.session_state.map_center_lng) > 0.0001 or
+        new_zoom != st.session_state.map_zoom):
+        
+        st.session_state.map_center_lat = new_lat
+        st.session_state.map_center_lng = new_lng
+        st.session_state.map_zoom = new_zoom
+        st.rerun() # 重新執行以更新篩選結果
+
+# --- 10. 顯示資料表格 ---
 st.subheader("📍 機構詳細列表")
 
 cols_to_show = ['orgName']
