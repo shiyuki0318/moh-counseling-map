@@ -19,7 +19,7 @@ def load_and_merge_data():
         df_gen = pd.read_csv(COUNSELING_CSV) 
         df_tel = pd.read_csv(TELEHEALTH_CSV) 
     except FileNotFoundError as e:
-        st.error(f"❌ 錯誤：找不到資料檔！ {e}")
+        st.error(f" 錯誤：找不到資料檔！ {e}")
         st.info(f"請確認 '{COUNSELING_CSV}' 和 '{TELEHEALTH_CSV}' 都在此 app 的資料夾中。")
         return pd.DataFrame()
     except Exception as e:
@@ -81,7 +81,7 @@ def geocode_user_address(address):
 
 # --- 4. Streamlit 應用程式主體 ---
 st.set_page_config(
-    page_title="台灣公費心理諮商地圖",
+    page_title="臺灣公費心理諮商地圖",
     page_icon="🗺️",
     layout="wide"
 )
@@ -126,7 +126,7 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-st.title(" 🧡台灣公費心理諮商 即時地圖搜尋系統🗺️  ")
+st.title(" 🧡臺灣公費心理諮商 即時地圖搜尋系統🗺️  ")
 st.markdown("「15-45歲青壯世代心理健康支持方案」，「 🧡心理諮商」及「📞通訊諮商」兩項公費資源整理。")
 
 # 衛福部提醒
@@ -266,7 +266,7 @@ if user_location:
     df_filtered = df_filtered[df_filtered['distance'] <= selected_distance]
     df_filtered = df_filtered.sort_values(by="distance")
     
-elif selected_county != "全台灣":
+elif selected_county != "全臺灣":
     # 縣市篩選
     df_filtered = df_filtered[df_filtered['scraped_county_name'] == selected_county]
 
@@ -359,3 +359,4 @@ st.dataframe(
 )
 
 st.caption(f"資料來源：衛福部心理健康司。目前顯示 {len(df_filtered)} / 總計 {len(df_master)} 筆機構資料。")
+
